@@ -8,9 +8,9 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-// ==========================================
-// 1. MONGODB CONNECTION
-// ==========================================
+// ===================================================
+// 1. MONGODB CONNECTION HELPER
+// ===================================================
 const MONGO_URI = process.env.MONGODB_URI;
 
 let isConnected = false;
@@ -28,77 +28,61 @@ async function connectDB() {
   }
 }
 
-// ==========================================
+// ===================================================
 // 2. MONGOOSE LISTING SCHEMA & MODEL
-// ==========================================
+// ===================================================
 const listingSchema = new mongoose.Schema({
-  teacherName: String,
-  subject: String,
-  currentCounty: String,
-  targetCounty: String,
-  contactPhone: String,
+  teacherName: { type: String, required: true },
+  subject: { type: String, required: true },
+  currentCounty: { type: String, required: true },
+  targetCounty: { type: String, required: true },
+  contactPhone: { type: String, required: true },
   email: String,
-}, { 
-  timestamps: true,
-  strict: false 
-});
+}, { timestamps: true });
 
-const Listing = mongoose.models.Listing || mongoose.model('Listing', listingSchema);
+const Listing = mongoose.model('Listing', listingSchema);
 
-// ==========================================
-// 3. ROUTES
-// ==========================================
-app.get('/', (req, res) => {
-  res.status(200).json({ message: 'TeacherConnect Backend Running' });
-});
+// ===================================================
+// 3. API ROUTE HANDLERS (PUT LATTER CODE HERE)
+// ===================================================
 
-// GET LISTINGS
+// GET listings
 app.get('/api/listings', async (req, res) => {
   try {
+    await connectDB(); // Ensure DB is connected first
     const listings = await Listing.find().sort({ createdAt: -1 });
-    return res.status(200).json({
-      success: true,
-      count: listings.length,
-      data: listings
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: 'Failed to fetch listings',
-      error: error.message
-    });
+    res.json(listings);
+  } catch (err) {
+    console.error('Error fetching listings:', err);
+    res.status(500).json({ error: err.message });
   }
 });
 
-// CREATE LISTING
+// POST new listing
 app.post('/api/listings', async (req, res) => {
   try {
-    console.log('Received listing submission payload:', req.body);
-    const newListing = new Listing(req.body);
-    const savedListing = await newListing.save();
-
-    return res.status(201).json({
-      success: true,
-      message: 'Listing saved to MongoDB successfully!',
-      data: savedListing
-    });
-  } catch (error) {
-    console.error('Error saving listing to MongoDB:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Failed to save listing to database',
-      error: error.message
-    });
+    await connectDB(); // Ensure DB is connected first
+    const listing = new Listing(req.body);
+    const savedListing = await listing.save();
+    res.status(201).json(savedListing);
+  } catch (err) {
+    console.error('Error saving listing:', err);
+    res.status(500).json({ error: err.message });
   }
 });
 
-// ==========================================
-// 4. M-PESA / DARAJA INTEGRATION
-// ==========================================
-const CONSUMER_KEY = process.env.MPESA_CONSUMER_KEY;
-const CONSUMER_SECRET = process.env.MPESA_CONSUMER_SECRET;
-const BUSINESS_SHORT_CODE = process.env.MPESA_SHORTCODE || '174379';
-const PASSKEY = process.env.MPESA_PASSKEY || 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919';
+// Root route
+app.get('/', (req, res) => {
+  res.send('Teacher Connect API is running!');
+});
+
+// Export or listen
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
+
+module.exports = app;const PASSKEY = process.env.MPESA_PASSKEY || 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919';
 const CALLBACK_URL = 'https://teacher-connect-backend.vercel.app/api/callback';
 
 const generateToken = async (req, res, next) => {
