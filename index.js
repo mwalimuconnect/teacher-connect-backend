@@ -13,12 +13,19 @@ app.use(cors());
 // ==========================================
 const MONGO_URI = process.env.MONGODB_URI;
 
-if (MONGO_URI) {
-  mongoose.connect(MONGO_URI)
-    .then(() => console.log('Successfully connected to MongoDB'))
-    .catch((err) => console.error('MongoDB connection error:', err));
-} else {
-  console.warn('Warning: MONGODB_URI environment variable is not defined.');
+let isConnected = false;
+
+async function connectDB() {
+  if (isConnected && mongoose.connection.readyState === 1) {
+    return;
+  }
+  if (MONGO_URI) {
+    await mongoose.connect(MONGO_URI);
+    isConnected = true;
+    console.log('Successfully connected to MongoDB');
+  } else {
+    console.warn('Warning: MONGODB_URI environment variable is missing.');
+  }
 }
 
 // ==========================================
