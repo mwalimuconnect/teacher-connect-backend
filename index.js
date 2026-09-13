@@ -18,7 +18,7 @@ if (MONGO_URI) {
     .then(() => console.log('Successfully connected to MongoDB'))
     .catch((err) => console.error('MongoDB connection error:', err));
 } else {
-  console.warn('Warning: MONGO_URI environment variable is not defined.');
+  console.warn('Warning: MONGODB_URI environment variable is not defined.');
 }
 
 // ==========================================
