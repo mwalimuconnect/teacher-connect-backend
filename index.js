@@ -11,7 +11,7 @@ app.use(cors());
 // ==========================================
 // 1. MONGODB CONNECTION
 // ==========================================
-const MONGO_URI = process.env.MONGO_URI;
+const MONGO_URI = process.env.MONGODB_URI;
 
 if (MONGO_URI) {
   mongoose.connect(MONGO_URI)
