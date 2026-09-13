@@ -6,6 +6,32 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
+// ==========================================
+// CREATE LISTING ENDPOINT (POST /api/listings)
+// ==========================================
+app.post('/api/listings', async (req, res) => {
+  try {
+    console.log('Received listing submission:', req.body);
+
+    // Express req.body contains the JSON sent from Flutter
+    const listingData = req.body;
+
+    // TODO: Add your database insert logic here (e.g., await Listing.create(listingData);)
+
+    return res.status(201).json({
+      success: true,
+      message: 'Listing submitted successfully!',
+      data: listingData
+    });
+  } catch (error) {
+    console.error('Error in /api/listings:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
+    });
+  }
+});
 // Load credentials from Vercel Environment Variables
 const CONSUMER_KEY = process.env.MPESA_CONSUMER_KEY;
 const CONSUMER_SECRET = process.env.MPESA_CONSUMER_SECRET;
