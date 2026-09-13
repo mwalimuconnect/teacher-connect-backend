@@ -1,62 +1,112 @@
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
+const mongoose = require('mongoose');
 
 const app = express();
+
 app.use(express.json());
 app.use(cors());
 
 // ==========================================
-// CREATE LISTING ENDPOINT (POST /api/listings)
+// 1. MONGODB CONNECTION
 // ==========================================
-app.post('/api/listings', async (req, res) => {
+const MONGO_URI = process.env.MONGO_URI;
+
+if (MONGO_URI) {
+  mongoose.connect(MONGO_URI)
+    .then(() => console.log('Successfully connected to MongoDB'))
+    .catch((err) => console.error('MongoDB connection error:', err));
+} else {
+  console.warn('Warning: MONGO_URI environment variable is not defined.');
+}
+
+// ==========================================
+// 2. MONGOOSE LISTING SCHEMA & MODEL
+// ==========================================
+const listingSchema = new mongoose.Schema({
+  teacherName: String,
+  subject: String,
+  currentCounty: String,
+  targetCounty: String,
+  contactPhone: String,
+  email: String,
+}, { 
+  timestamps: true,
+  strict: false 
+});
+
+const Listing = mongoose.models.Listing || mongoose.model('Listing', listingSchema);
+
+// ==========================================
+// 3. ROUTES
+// ==========================================
+app.get('/', (req, res) => {
+  res.status(200).json({ message: 'TeacherConnect Backend Running' });
+});
+
+// GET LISTINGS
+app.get('/api/listings', async (req, res) => {
   try {
-    console.log('Received listing submission:', req.body);
-
-    // Express req.body contains the JSON sent from Flutter
-    const listingData = req.body;
-
-    // TODO: Add your database insert logic here (e.g., await Listing.create(listingData);)
-
-    return res.status(201).json({
+    const listings = await Listing.find().sort({ createdAt: -1 });
+    return res.status(200).json({
       success: true,
-      message: 'Listing submitted successfully!',
-      data: listingData
+      count: listings.length,
+      data: listings
     });
   } catch (error) {
-    console.error('Error in /api/listings:', error);
     return res.status(500).json({
       success: false,
-      message: 'Internal server error',
+      message: 'Failed to fetch listings',
       error: error.message
     });
   }
 });
-// Load credentials from Vercel Environment Variables
+
+// CREATE LISTING
+app.post('/api/listings', async (req, res) => {
+  try {
+    console.log('Received listing submission payload:', req.body);
+    const newListing = new Listing(req.body);
+    const savedListing = await newListing.save();
+
+    return res.status(201).json({
+      success: true,
+      message: 'Listing saved to MongoDB successfully!',
+      data: savedListing
+    });
+  } catch (error) {
+    console.error('Error saving listing to MongoDB:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to save listing to database',
+      error: error.message
+    });
+  }
+});
+
+// ==========================================
+// 4. M-PESA / DARAJA INTEGRATION
+// ==========================================
 const CONSUMER_KEY = process.env.MPESA_CONSUMER_KEY;
 const CONSUMER_SECRET = process.env.MPESA_CONSUMER_SECRET;
 const BUSINESS_SHORT_CODE = process.env.MPESA_SHORTCODE || '174379';
 const PASSKEY = process.env.MPESA_PASSKEY || 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919';
 const CALLBACK_URL = 'https://teacher-connect-backend.vercel.app/api/callback';
 
-// Middleware to generate Daraja OAuth Token
 const generateToken = async (req, res, next) => {
   if (!CONSUMER_KEY || !CONSUMER_SECRET) {
     return res.status(500).json({
       success: false,
-      message: 'M-Pesa Consumer Key or Secret is missing in Vercel Environment Variables.',
+      message: 'M-Pesa Consumer Key or Secret is missing'
     });
   }
 
   try {
-    const authHeader = Buffer.from(`${CONSUMER_KEY.trim()}:${CONSUMER_SECRET.trim()}`).toString('base64');
+    const authHeader = Buffer.from(`${CONSUMER_KEY}:${CONSUMER_SECRET}`).toString('base64');
     const response = await axios.get(
       'https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials',
-      {
-        headers: {
-          Authorization: `Basic ${authHeader}`,
-        },
-      }
+      { headers: { Authorization: `Basic ${authHeader}` } }
     );
     req.token = response.data.access_token;
     next();
@@ -64,26 +114,23 @@ const generateToken = async (req, res, next) => {
     console.error('M-Pesa Auth Error:', error.response?.data || error.message);
     return res.status(500).json({
       success: false,
-      message: 'Failed to authenticate with M-Pesa. Check Consumer Key and Secret.',
-      details: error.response?.data || error.message,
+      message: 'Failed to authenticate with M-Pesa Daraja',
+      details: error.response?.data || error.message
     });
   }
 };
-
-app.get('/', (req, res) => {
-  res.status(200).json({ message: 'TeacherConnect Backend is Live!' });
-});
 
 app.post('/api/stkpush', generateToken, async (req, res) => {
   let { phoneNumber, amount } = req.body;
 
   if (!phoneNumber || !amount) {
-    return res.status(400).json({ error: 'Phone number and amount are required' });
+    return res.status(400).json({ success: false, message: 'Phone number and amount required' });
   }
 
-  phoneNumber = phoneNumber.replace(/\D/g, '');
   if (phoneNumber.startsWith('0')) {
-    phoneNumber = `254${phoneNumber.substring(1)}`;
+    phoneNumber = '254' + phoneNumber.slice(1);
+  } else if (phoneNumber.startsWith('+254')) {
+    phoneNumber = phoneNumber.slice(1);
   }
 
   const date = new Date();
@@ -111,25 +158,21 @@ app.post('/api/stkpush', generateToken, async (req, res) => {
         PhoneNumber: phoneNumber,
         CallBackURL: CALLBACK_URL,
         AccountReference: 'TeacherConnect',
-        TransactionDesc: 'Payment',
+        TransactionDesc: 'Payment'
       },
-      {
-        headers: {
-          Authorization: `Bearer ${req.token}`,
-        },
-      }
+      { headers: { Authorization: `Bearer ${req.token}` } }
     );
 
     return res.status(200).json({
       success: true,
-      ...response.data,
+      ...response.data
     });
   } catch (error) {
     console.error('STK Push Error:', error.response?.data || error.message);
     return res.status(500).json({
       success: false,
       message: 'STK Push failed',
-      error: error.response?.data || error.message,
+      error: error.response?.data || error.message
     });
   }
 });
