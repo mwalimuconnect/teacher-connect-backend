@@ -1,85 +1,33 @@
 const express = require('express');
-const axios = require('axios');
-const cors = require('cors');
 const mongoose = require('mongoose');
+const cors = require('cors');
+
+// Import Auth Router from routes folder
+const authRoutes = require('./routes/auth');
 
 const app = express();
 
-app.use(express.json());
+// Middlewares
 app.use(cors());
+app.use(express.json());
 
-// ===================================================
-// 1. MONGODB CONNECTION HELPER
-// ===================================================
-const MONGO_URI = process.env.MONGODB_URI;
+// Base diagnostic endpoint
+app.get('/', (req, res) => {
+  res.send('TeacherConnect API is live!');
+});
 
-let isConnected = false;
+// Mount Auth Routes at /api/auth
+app.use('/api/auth', authRoutes);
 
-async function connectDB() {
-  if (isConnected && mongoose.connection.readyState === 1) {
-    return;
-  }
-  if (MONGO_URI) {
-    await mongoose.connect(MONGO_URI);
-    isConnected = true;
-    console.log('Successfully connected to MongoDB');
-  } else {
-    console.warn('Warning: MONGODB_URI environment variable is missing.');
-  }
+// MongoDB Atlas Connection
+const MONGO_URI = process.env.MONGO_URI;
+if (MONGO_URI) {
+  mongoose.connect(MONGO_URI)
+    .then(() => console.log('MongoDB Connected Successfully'))
+    .catch((err) => console.error('MongoDB Connection Error:', err));
+} else {
+  console.warn('MONGO_URI environment variable is missing in Vercel settings!');
 }
 
-// ===================================================
-// 2. MONGOOSE LISTING SCHEMA & MODEL
-// ===================================================
-const listingSchema = new mongoose.Schema({
-  teacherName: { type: String, required: true },
-  subject: { type: String, required: true },
-  currentCounty: { type: String, required: true },
-  targetCounty: { type: String, required: true },
-  contactPhone: { type: String, required: true },
-  email: String,
-}, { timestamps: true });
-
-const Listing = mongoose.model('Listing', listingSchema);
-
-// ===================================================
-// 3. API ROUTE HANDLERS (PUT LATTER CODE HERE)
-// ===================================================
-
-// GET listings
-app.get('/api/listings', async (req, res) => {
-  try {
-    await connectDB(); // Ensure DB is connected first
-    const listings = await Listing.find().sort({ createdAt: -1 });
-    res.json(listings);
-  } catch (err) {
-    console.error('Error fetching listings:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// POST new listing
-app.post('/api/listings', async (req, res) => {
-  try {
-    await connectDB(); // Ensure DB is connected first
-    const listing = new Listing(req.body);
-    const savedListing = await listing.save();
-    res.status(201).json(savedListing);
-  } catch (err) {
-    console.error('Error saving listing:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Root route
-app.get('/', (req, res) => {
-  res.send('Teacher Connect API is running!');
-});
-
-// Export or listen
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
-
+// Export Express app for Vercel Serverless
 module.exports = app;
