@@ -1,67 +1,80 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const User = require('../models/User'); // Import your Mongoose User model
+const User = require("../models/User"); // Import your Mongoose User model
+
+// Hardcoded or environment-based passcode
+const CORRECT_ADMIN_PASSCODE = process.env.ADMIN_PASSCODE || "31079824";
 
 // REGISTER ENDPOINT: POST /api/auth/register
-router.post('/register', async (req, res) => {
+router.post("/register", async (req, res) => {
   try {
-    const { fullName, tscNumber, phone, nationalId, role } = req.body;
+    const { fullName, tscNumber, phone, nationalId, role, adminPasscode } = req.body;
 
     // 1. Check required fields
     if (!fullName || !tscNumber || !phone || !nationalId) {
-      return res.status(400).json({ 
-        message: 'All fields (Full Name, TSC Number, Phone, National ID) are required.' 
+      return res.status(400).json({
+        message: "All fields (Full Name, TSC Number, Phone, National ID) are required.",
       });
     }
 
-    // 2. Check if user already exists by TSC Number or National ID
+    // 2. Passcode verification for Admin roles
+    const selectedRole = role || "Member Teacher";
+    if (selectedRole === "Administrator" || selectedRole === "Assistant Admin") {
+      if (!adminPasscode || adminPasscode.trim() !== CORRECT_ADMIN_PASSCODE) {
+        return res.status(401).json({
+          message: "Invalid or missing Admin Passcode.",
+        });
+      }
+    }
+
+    // 3. Check if user already exists by TSC Number or National ID
     const existingUser = await User.findOne({
-      $or: [{ tscNumber }, { nationalId }]
+      $or: [{ tscNumber }, { nationalId }],
     });
 
     if (existingUser) {
-      return res.status(400).json({ 
-        message: 'A user with this TSC Number or National ID already exists.' 
+      return res.status(400).json({
+        message: "A user with this TSC Number or National ID already exists.",
       });
     }
 
-    // 3. Create new user
+    // 4. Create new user
     const newUser = new User({
       fullName,
       tscNumber,
       phone,
       nationalId,
-      role: role || 'Member Teacher'
+      role: selectedRole,
     });
 
     await newUser.save();
 
-    // 4. Return user info matching Flutter's expectations
+    // 5. Return user info matching Flutter's expectations
     return res.status(201).json({
-      message: 'Registration successful!',
+      message: "Registration successful!",
       user: {
         id: newUser._id,
         fullName: newUser.fullName,
         tscNumber: newUser.tscNumber,
         phone: newUser.phone,
-        role: newUser.role
-      }
+        role: newUser.role,
+      },
     });
   } catch (error) {
-    console.error('Registration Error:', error);
-    return res.status(500).json({ message: 'Server error during registration.' });
+    console.error("Registration Error:", error);
+    return res.status(500).json({ message: "Server error during registration." });
   }
 });
 
 // LOGIN ENDPOINT: POST /api/auth/login
-router.post('/login', async (req, res) => {
+router.post("/login", async (req, res) => {
   try {
     const { tscNumber, nationalId } = req.body;
 
     // 1. Check required fields
     if (!tscNumber || !nationalId) {
-      return res.status(400).json({ 
-        message: 'Both TSC Number and National ID are required.' 
+      return res.status(400).json({
+        message: "Both TSC Number and National ID are required.",
       });
     }
 
@@ -69,25 +82,25 @@ router.post('/login', async (req, res) => {
     const user = await User.findOne({ tscNumber, nationalId });
 
     if (!user) {
-      return res.status(401).json({ 
-        message: 'Invalid TSC Number or National ID.' 
+      return res.status(401).json({
+        message: "Invalid TSC Number or National ID.",
       });
     }
 
     // 3. Return user session payload
     return res.status(200).json({
-      message: 'Login successful!',
+      message: "Login successful!",
       user: {
         id: user._id,
         fullName: user.fullName,
         tscNumber: user.tscNumber,
         phone: user.phone,
-        role: user.role
-      }
+        role: user.role,
+      },
     });
   } catch (error) {
-    console.error('Login Error:', error);
-    return res.status(500).json({ message: 'Server error during login.' });
+    console.error("Login Error:", error);
+    return res.status(500).json({ message: "Server error during login." });
   }
 });
 
