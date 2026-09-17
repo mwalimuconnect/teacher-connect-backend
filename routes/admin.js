@@ -8,7 +8,20 @@ router.get('/stats', async (req, res) => {
   try {
     const totalListings = await Listing.countDocuments();
     const pendingApprovals = await Listing.countDocuments({ status: 'pending' });
-    const totalPayments = 0;
+    let totalPayments = 0;
+try {
+  const Payment = require('../models/Payment');
+  const paymentResult = await Payment.aggregate([
+    { $match: { status: 'Completed' } },
+    { $group: { _id: null, total: { $sum: '$amount' } } }
+  ]);
+  if (paymentResult.length > 0) {
+    totalPayments = paymentResult[0].total;
+  }
+} catch (e) {
+  // Safe fallback to 0 if Payment model or collection is not created yet
+  totalPayments = 0;
+}
 
     res.json({
       totalListings,
