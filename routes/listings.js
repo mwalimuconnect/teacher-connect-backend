@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Listing = require('../models/Listing');
 
-// GET /api/listings - Fetch all listings for the feed
+// GET /api/listings - Fetch all listings
 router.get('/', async (req, res) => {
   try {
     const listings = await Listing.find().sort({ createdAt: -1 });
@@ -12,10 +12,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// POST /api/listings - Handle listing submissions from Flutter
-router.post('/', async (req, res) => {
-  try {
-    // POST /api/listings
+// POST /api/listings - Handle listing submissions
 router.post('/', async (req, res) => {
   try {
     const {
@@ -33,7 +30,7 @@ router.post('/', async (req, res) => {
       targetSubCounty
     } = req.body;
 
-    // Normalize incoming payload to match Mongoose schema requirements
+    // Normalize incoming payload to match Mongoose schema
     const listingData = {
       type: type || 'TSC Swap',
       fullName: fullName || teacherName,
@@ -56,5 +53,5 @@ router.post('/', async (req, res) => {
     res.status(400).json({ error: err.message });
   }
 });
-    
+
 module.exports = router;
