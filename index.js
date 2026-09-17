@@ -13,7 +13,7 @@ const connectDB = async () => {
   if (isConnected) return;
   
   try {
-        const mongoUri = process.env.MONGO_URI || "mongodb+srv://samueloino_db_user:YOUR_PASSWORD@cluster0.xxxxx.mongodb.net/teacherconnect?retryWrites=true&w=majority";
+        const mongoUri = process.env.MONGO_URI || "mongodb+srv://samueloino_db_user:minE2021@cluster0.xxxxx.mongodb.net/teacherconnect?retryWrites=true&w=majority";
 
     const db = await mongoose.connect(mongoUri, {
       bufferCommands: false, // Prevents 10000ms buffering timeouts
