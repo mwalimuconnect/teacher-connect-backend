@@ -58,5 +58,33 @@ router.patch('/approve-listing/:id', async (req, res) => {
     res.status(500).json({ error: 'Failed to update listing status' });
   }
 });
+// GET /api/admin/bom-vacancies (Fetch all school vacancy posts)
+router.get('/bom-vacancies', async (req, res) => {
+  try {
+    const vacancies = await Listing.find({ type: 'bom_vacancy' }).sort({ createdAt: -1 });
+    res.json(vacancies);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch BOM vacancies' });
+  }
+});
 
+// GET /api/admin/bom-seekers (Fetch all teacher job seeker profiles)
+router.get('/bom-seekers', async (req, res) => {
+  try {
+    const seekers = await Listing.find({ type: 'bom_seeker' }).sort({ createdAt: -1 });
+    res.json(seekers);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch BOM job seekers' });
+  }
+});
+
+// DELETE /api/admin/listing/:id (Delete any listing/vacancy)
+router.delete('/listing/:id', async (req, res) => {
+  try {
+    await Listing.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Listing deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete listing' });
+  }
+});
 module.exports = router;
