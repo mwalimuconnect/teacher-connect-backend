@@ -15,9 +15,39 @@ router.get('/', async (req, res) => {
 // POST /api/listings - Handle listing submissions from Flutter
 router.post('/', async (req, res) => {
   try {
-    const newListing = new Listing(req.body);
+    // POST /api/listings
+router.post('/', async (req, res) => {
+  try {
+    const {
+      type,
+      fullName,
+      teacherName,
+      county,
+      currentCounty,
+      subCounty,
+      subjectCombination,
+      subject,
+      phone,
+      contactPhone,
+      targetCounty,
+      targetSubCounty
+    } = req.body;
+
+    // Normalize incoming payload to match Mongoose schema requirements
+    const listingData = {
+      type: type || 'TSC Swap',
+      fullName: fullName || teacherName,
+      county: county || currentCounty,
+      subCounty: subCounty || 'Not Specified',
+      subjectCombination: subjectCombination || subject,
+      phone: phone || contactPhone,
+      targetCounty,
+      targetSubCounty
+    };
+
+    const newListing = new Listing(listingData);
     const savedListing = await newListing.save();
-    
+
     res.status(201).json({
       message: 'Listing created successfully',
       data: savedListing,
@@ -26,5 +56,5 @@ router.post('/', async (req, res) => {
     res.status(400).json({ error: err.message });
   }
 });
-
+    
 module.exports = router;
