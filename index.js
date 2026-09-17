@@ -2,22 +2,24 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 
-// Import Auth Router from routes folder
 const authRoutes = require('./routes/auth');
+const listingRoutes = require('./routes/listings');
 
 const app = express();
 
-// Middlewares
+// Required Middlewares for parsing POST requests
 app.use(cors());
-app.use(express.json());
+app.use(express.json()); // Essential: parses incoming JSON bodies
+app.use(express.urlencoded({ extended: true }));
 
-// Base diagnostic endpoint
+// Base Route
 app.get('/', (req, res) => {
   res.send('TeacherConnect API is live!');
 });
 
-// Mount Auth Routes at /api/auth
+// Mount Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/listings', listingRoutes);
 
 // MongoDB Atlas Connection
 const MONGO_URI = process.env.MONGO_URI;
@@ -25,9 +27,6 @@ if (MONGO_URI) {
   mongoose.connect(MONGO_URI)
     .then(() => console.log('MongoDB Connected Successfully'))
     .catch((err) => console.error('MongoDB Connection Error:', err));
-} else {
-  console.warn('MONGO_URI environment variable is missing in Vercel settings!');
 }
 
-// Export Express app for Vercel Serverless
 module.exports = app;
