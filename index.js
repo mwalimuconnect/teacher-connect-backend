@@ -3,38 +3,26 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 
 const app = express();
+
+// Middleware
 app.use(cors());
 app.use(express.json());
 
-// Maintain connection state across serverless calls
-let isConnected = false;
+// Connect to MongoDB
+mongoose
+  .connect(process.env.MONGO_URI)
+  .then(() => console.log('MongoDB connected'))
+  .catch((err) => console.error('MongoDB connection error:', err));
 
-const connectDB = async () => {
-  if (isConnected) return;
-  
-  try {const mongoUri = process.env.MONGO_URI || "mongodb+srv://samueloino_db_user:minE2021@cluster0.uaxli8e.mongodb.net/teacherconnect?retryWrites=true&w=majority";
-    const db = await mongoose.connect(mongoUri, {
-      bufferCommands: false, // Prevents 10000ms buffering timeouts
-      serverSelectionTimeoutMS: 5000,
-    });
-    isConnected = db.connections[0].readyState;
-    console.log('MongoDB connected successfully');
-  } catch (err) {
-    console.error('MongoDB connection error:', err);
-    throw err;
-  }
-};
-
-// Ensure database connection middleware
-app.use(async (req, res, next) => {
-  try {
-    await connectDB();
-    next();
-  } catch (err) {
-    res.status(500).json({ error: 'Database connection failed' });
-  }
-});
-
-// Routes
+// Register Routes
 app.use('/api/listings', require('./routes/listings'));
 app.use('/api/admin', require('./routes/admin'));
+app.use('/api/auth', require('./routes/auth'));
+
+// Root test route
+app.get('/', (req, res) => {
+  res.send('Teacher Connect API is running');
+});
+
+// CRITICAL: Export the Express app for Vercel
+module.exports = app;
