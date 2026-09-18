@@ -7,15 +7,37 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// UPDATE YOUR MONGOOSE CONNECTION HERE
-mongoose.connect(process.env.MONGO_URI, {
-  serverSelectionTimeoutMS: 5000, // Timeout fast if connection fails
-  bufferCommands: false,          // Fail immediately instead of hanging for 10s
-})
-.then(() => console.log('MongoDB connected successfully'))
-.catch((err) => console.error('MongoDB connection error:', err));
+// Serverless MongoDB Connection Cache
+let isConnected = false;
 
-// Register Routes
+const connectDB = async () => {
+  if (isConnected && mongoose.connection.readyState === 1) {
+    return;
+  }
+  
+  try {
+    const db = await mongoose.connect(process.env.MONGO_URI, {
+      serverSelectionTimeoutMS: 5000,
+    });
+    isConnected = db.connections[0].readyState === 1;
+    console.log('MongoDB connected successfully');
+  } catch (error) {
+    console.error('MongoDB connection error:', error);
+    throw error;
+  }
+};
+
+// Ensure database connection is active before processing routes
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    res.status(500).json({ error: 'Database connection failed: ' + err.message });
+  }
+});
+
+// Routes
 app.use('/api/listings', require('./routes/listings'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/auth', require('./routes/auth'));
@@ -25,3 +47,4 @@ app.get('/', (req, res) => {
 });
 
 module.exports = app;
+
