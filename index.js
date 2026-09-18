@@ -4,25 +4,24 @@ const cors = require('cors');
 
 const app = express();
 
-// Middleware
 app.use(cors());
 app.use(express.json());
 
-// Connect to MongoDB
-mongoose
-  .connect(process.env.MONGO_URI)
-  .then(() => console.log('MongoDB connected'))
-  .catch((err) => console.error('MongoDB connection error:', err));
+// UPDATE YOUR MONGOOSE CONNECTION HERE
+mongoose.connect(process.env.MONGO_URI, {
+  serverSelectionTimeoutMS: 5000, // Timeout fast if connection fails
+  bufferCommands: false,          // Fail immediately instead of hanging for 10s
+})
+.then(() => console.log('MongoDB connected successfully'))
+.catch((err) => console.error('MongoDB connection error:', err));
 
 // Register Routes
 app.use('/api/listings', require('./routes/listings'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/auth', require('./routes/auth'));
 
-// Root test route
 app.get('/', (req, res) => {
   res.send('Teacher Connect API is running');
 });
 
-// CRITICAL: Export the Express app for Vercel
 module.exports = app;
