@@ -80,5 +80,47 @@ router.post('/', async (req, res) => {
     res.status(400).json({ error: err.message || 'Failed to create listing' });
   }
 });
+// PUT /api/listings/:id - Update an existing listing
+router.put('/:id', async (req, res) => {
+  try {
+    const updatedListing = await Listing.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedListing) {
+      return res.status(404).json({ error: 'Listing not found' });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Listing updated successfully',
+      data: updatedListing
+    });
+  } catch (err) {
+    console.error('Error updating listing:', err);
+    res.status(500).json({ error: err.message || 'Failed to update listing' });
+  }
+});
+
+// DELETE /api/listings/:id - Delete a listing
+router.delete('/:id', async (req, res) => {
+  try {
+    const deletedListing = await Listing.findByIdAndDelete(req.params.id);
+
+    if (!deletedListing) {
+      return res.status(404).json({ error: 'Listing not found' });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Listing deleted successfully'
+    });
+  } catch (err) {
+    console.error('Error deleting listing:', err);
+    res.status(500).json({ error: err.message || 'Failed to delete listing' });
+  }
+});
 
 module.exports = router;
