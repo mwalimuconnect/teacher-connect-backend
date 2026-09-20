@@ -61,8 +61,16 @@ router.patch('/approve-listing/:id', async (req, res) => {
 // GET /api/admin/bom-vacancies (Fetch all school vacancy posts)
 router.get('/bom-vacancies', async (req, res) => {
   try {
-    const vacancies = await Listing.find({ type: 'bom_vacancy' }).sort({ createdAt: -1 });
-    res.json(vacancies);
+    const vacancies = await Listing.find({ 
+      type: { $regex: /bom_?vacancy/i } 
+    }).sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: vacancies.length,
+      listings: vacancies,
+      data: vacancies
+    });
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch BOM vacancies' });
   }
@@ -71,13 +79,20 @@ router.get('/bom-vacancies', async (req, res) => {
 // GET /api/admin/bom-seekers (Fetch all teacher job seeker profiles)
 router.get('/bom-seekers', async (req, res) => {
   try {
-    const seekers = await Listing.find({ type: 'bom_seeker' }).sort({ createdAt: -1 });
-    res.json(seekers);
+    const seekers = await Listing.find({ 
+      type: { $regex: /bom_?seeker/i } 
+    }).sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: seekers.length,
+      listings: seekers,
+      data: seekers
+    });
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch BOM job seekers' });
   }
 });
-
 // DELETE /api/admin/listing/:id (Delete any listing/vacancy)
 router.delete('/listing/:id', async (req, res) => {
   try {
