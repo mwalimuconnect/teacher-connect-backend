@@ -2,15 +2,24 @@ const express = require('express');
 const router = express.Router();
 const Listing = require('../models/Listing');
 
-// GET /api/listings - Fetch all listings or filter by query (e.g. ?type=BOM Job)
+// GET /api/listings - Fetch all listings or filter by query
 router.get('/', async (req, res) => {
   try {
     const filter = {};
     if (req.query.type) {
-      filter.type = req.query.type;
+      // Case-insensitive regex match for 'TSC Swap', 'BOM Job', etc.
+      filter.type = { $regex: new RegExp(`^${req.query.type}$`, 'i') };
     }
+
     const listings = await Listing.find(filter).sort({ createdAt: -1 });
-    res.status(200).json(listings);
+
+    // Send BOTH top-level object wrapper and array to support both Flutter parsers
+    res.status(200).json({
+      success: true,
+      count: listings.length,
+      listings: listings,
+      data: listings
+    });
   } catch (err) {
     console.error('Error fetching listings:', err);
     res.status(500).json({ error: err.message || 'Failed to fetch listings' });
