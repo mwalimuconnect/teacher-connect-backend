@@ -8,6 +8,7 @@ router.get('/stats', async (req, res) => {
   try {
     const totalListings = await Listing.countDocuments();
     const pendingApprovals = await Listing.countDocuments({ status: 'pending' });
+    const totalMembers = await User.countDocuments();
     let totalPayments = 0;
 try {
   const Payment = require('../models/Payment');
