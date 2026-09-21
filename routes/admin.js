@@ -27,7 +27,8 @@ try {
     res.json({
       totalListings,
       pendingApprovals,
-      totalPayments
+      totalPayments,
+      totalMembers
     });
   } catch (error) {
     console.error('Error fetching admin stats:', error);
