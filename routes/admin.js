@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 
 const Listing = require('../models/Listing');
-
+const User = require('../models/User');
 // GET /api/admin/stats
 router.get('/stats', async (req, res) => {
   try {
