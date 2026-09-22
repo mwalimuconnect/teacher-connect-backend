@@ -9,7 +9,7 @@ router.get('/stats', async (req, res) => {
     const totalListings = await Listing.countDocuments({});
     const pendingApprovals = await Listing.countDocuments({ status: 'pending' });
     const totalMembers = await User.countDocuments({});
-    
+
     let totalPayments = 0;
     try {
       const Payment = require('../models/Payment');
@@ -30,11 +30,6 @@ router.get('/stats', async (req, res) => {
       totalPayments,
       totalMembers
     });
-  } catch (error) {
-    console.error('Error fetching admin stats:', error);
-    res.status(500).json({ error: 'Failed to compute stats' });
-  }
-});
   } catch (error) {
     console.error('Error fetching admin stats:', error);
     res.status(500).json({ error: 'Failed to compute stats' });
