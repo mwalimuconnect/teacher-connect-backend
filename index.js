@@ -1,6 +1,7 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const mpesaRoutes = require('./routes/mpesa');
 
 const app = express();
 
@@ -41,6 +42,7 @@ app.use(async (req, res, next) => {
 app.use('/api/listings', require('./routes/listings'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/auth', require('./routes/auth'));
+app.use('/api/mpesa', mpesaRoutes);
 
 app.get('/', (req, res) => {
   res.send('Teacher Connect API is running');
