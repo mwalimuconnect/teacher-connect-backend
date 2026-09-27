@@ -57,11 +57,6 @@ router.get('/type/:type', async (req, res) => {
     res.status(500).json({ error: err.message || 'Failed to fetch listings by type' });
   }
 });
-  } catch (err) {
-    console.error('Error fetching listings by type:', err);
-    res.status(500).json({ error: err.message || 'Failed to fetch listings by type' });
-  }
-});
 
 // POST /api/listings - Handle listing submissions safely
 router.post('/', async (req, res) => {
