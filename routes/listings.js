@@ -12,13 +12,26 @@ router.get('/', async (req, res) => {
 
     const listings = await Listing.find(filter).sort({ createdAt: -1 });
 
-    // Format each listing to map teacher names directly for Flutter
+    // Format each listing to map teacher names, phone, and school details directly for Flutter
     const formattedListings = listings.map(item => {
       const doc = item._doc || item;
+      const phoneVal = item.phone || item.contactPhone || item.phoneNumber || item.contactNumber || 'N/A';
+      const schoolVal = item.currentSchool || item.school || item.schoolName || 'N/A';
+      const nameVal = item.fullName || item.teacherName || 'N/A';
+
       return {
         ...doc,
-        teacherName: item.fullName || item.teacherName || 'N/A',
-        user: { name: item.fullName || item.teacherName || 'N/A' },
+        teacherName: nameVal,
+        phone: phoneVal,
+        phoneNumber: phoneVal,
+        contactNumber: phoneVal,
+        currentSchool: schoolVal,
+        school: schoolVal,
+        user: { 
+          name: nameVal,
+          phone: phoneVal,
+          school: schoolVal
+        },
         currentCounty: item.county || item.currentCounty || 'N/A'
       };
     });
@@ -39,14 +52,27 @@ router.get('/', async (req, res) => {
 // GET /api/listings/type/:type - Fetch listings by specific type
 router.get('/type/:type', async (req, res) => {
   try {
-    const listings = await Listing.find({ type: req.params.type }).sort({ createdAt: -1 });
+    const listings = await Listing.find({ type: { $regex: new RegExp(`^${req.params.type}$`, 'i') } }).sort({ createdAt: -1 });
 
     const formattedListings = listings.map(item => {
       const doc = item._doc || item;
+      const phoneVal = item.phone || item.contactPhone || item.phoneNumber || item.contactNumber || 'N/A';
+      const schoolVal = item.currentSchool || item.school || item.schoolName || 'N/A';
+      const nameVal = item.fullName || item.teacherName || 'N/A';
+
       return {
         ...doc,
-        teacherName: item.fullName || item.teacherName || 'N/A',
-        user: { name: item.fullName || item.teacherName || 'N/A' },
+        teacherName: nameVal,
+        phone: phoneVal,
+        phoneNumber: phoneVal,
+        contactNumber: phoneVal,
+        currentSchool: schoolVal,
+        school: schoolVal,
+        user: { 
+          name: nameVal,
+          phone: phoneVal,
+          school: schoolVal
+        },
         currentCounty: item.county || item.currentCounty || 'N/A'
       };
     });
@@ -68,10 +94,14 @@ router.post('/', async (req, res) => {
       county,
       currentCounty,
       subCounty,
+      currentSchool,
+      school,
       subjectCombination,
       subject,
       phone,
       contactPhone,
+      phoneNumber,
+      contactNumber,
       targetCounty,
       targetSubCounty,
       status
@@ -82,8 +112,9 @@ router.post('/', async (req, res) => {
       fullName: fullName || teacherName || 'Anonymous Teacher',
       county: county || currentCounty || 'Unspecified',
       subCounty: subCounty || 'Not Specified',
+      currentSchool: currentSchool || school || 'Not Specified',
       subjectCombination: subjectCombination || subject || 'Not Specified',
-      phone: phone || contactPhone || '',
+      phone: phone || contactPhone || phoneNumber || contactNumber || '',
       targetCounty: targetCounty || '',
       targetSubCounty: targetSubCounty || '',
       status: status || 'Pending'
@@ -94,13 +125,14 @@ router.post('/', async (req, res) => {
 
     res.status(201).json({
       message: 'Listing created successfully',
-      data: savedListing,
+      data: savedListing
     });
   } catch (err) {
     console.error('Error saving listing:', err);
     res.status(400).json({ error: err.message || 'Failed to create listing' });
   }
 });
+
 // PUT /api/listings/:id - Update an existing listing
 router.put('/:id', async (req, res) => {
   try {
