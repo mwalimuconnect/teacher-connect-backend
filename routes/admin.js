@@ -51,8 +51,8 @@ router.get('/stats', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching admin stats:', error);
-    res.status(500).json({ error: 'Failed to compute stats' });
+  console.error('Error fetching admin stats:', error);
+  res.status(500).json({ error: 'Failed to compute stats' });
   }
 });
 // GET /api/admin/pending-listings
