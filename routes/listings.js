@@ -2,60 +2,56 @@ const express = require('express');
 const router = express.Router();
 const Listing = require('../models/Listing');
 
+// Helper function to format items uniformly
+const formatListing = (item) => {
+  const doc = item._doc || item;
+  const phoneVal = item.phone || item.contactPhone || item.phoneNumber || item.contactNumber || 'N/A';
+  const schoolVal = item.currentSchool || item.school || item.schoolName || 'N/A';
+  const nameVal = item.fullName || item.teacherName || 'N/A';
+
+  return {
+    ...doc,
+    teacherName: nameVal,
+    fullName: nameVal,
+    phone: phoneVal,
+    phoneNumber: phoneVal,
+    contactNumber: phoneVal,
+    currentSchool: schoolVal,
+    school: schoolVal,
+    user: { 
+      name: nameVal,
+      phone: phoneVal,
+      school: schoolVal
+    },
+    currentCounty: item.county || item.currentCounty || 'N/A'
+  };
+};
+
 // GET /api/listings - Fetch all listings or filter by query
 router.get('/', async (req, res) => {
   try {
     const filter = {};
     if (req.query.type) {
-      filter.type = { $regex: new RegExp(`^${req.query.type}$`, 'i') };
+      filter.type = { $regex: new RegExp(req.query.type, 'i') };
     }
 
     const listings = await Listing.find(filter).sort({ createdAt: -1 });
+    const formattedListings = listings.map(formatListing);
 
-    // Format each listing to map teacher names, phone, and school details directly for Flutter
-    const formattedListings = listings.map(item => {
-      const doc = item._doc || item;
-      const phoneVal = item.phone || item.contactPhone || item.phoneNumber || item.contactNumber || 'N/A';
-      const schoolVal = item.currentSchool || item.school || item.schoolName || 'N/A';
-      const nameVal = item.fullName || item.teacherName || 'N/A';
-
-      return {
-        ...doc,
-        teacherName: nameVal,
-        phone: phoneVal,
-        phoneNumber: phoneVal,
-        contactNumber: phoneVal,
-        currentSchool: schoolVal,
-        school: schoolVal,
-        user: { 
-          name: nameVal,
-          phone: phoneVal,
-          school: schoolVal
-        },
-        currentCounty: item.county || item.currentCounty || 'N/A'
-      };
-    });
-
-    // Send BOTH top-level object wrapper and array to support both Flutter parsers
-    res.status(200).json({
-      success: true,
-      count: formattedListings.length,
-      listings: formattedListings,
-      data: formattedListings
-    });
+    // Return direct array for Flutter list parser compatibility
+    res.status(200).json(formattedListings);
   } catch (err) {
     console.error('Error fetching listings:', err);
     res.status(500).json({ error: err.message || 'Failed to fetch listings' });
   }
 });
 
-// GET /api/listings/type/:type - Fetch listings flexibly by tab type
+// GET /api/listings/type/:type - Fetch listings by tab category
 router.get('/type/:type', async (req, res) => {
   try {
     const requestedType = req.params.type;
     let typeQuery = {};
 
-    // Flexible matching for different tab categories
     if (/swap/i.test(requestedType)) {
       typeQuery = { type: { $regex: /swap/i } };
     } else if (/job|vacancy/i.test(requestedType)) {
@@ -66,33 +62,10 @@ router.get('/type/:type', async (req, res) => {
       typeQuery = { type: { $regex: new RegExp(requestedType, 'i') } };
     }
 
-    // Fetch matching listings (sorted newest first)
     const listings = await Listing.find(typeQuery).sort({ createdAt: -1 });
+    const formattedListings = listings.map(formatListing);
 
-    const formattedListings = listings.map(item => {
-      const doc = item._doc || item;
-      const phoneVal = item.phone || item.contactPhone || item.phoneNumber || item.contactNumber || 'N/A';
-      const schoolVal = item.currentSchool || item.school || item.schoolName || 'N/A';
-      const nameVal = item.fullName || item.teacherName || 'N/A';
-
-      return {
-        ...doc,
-        teacherName: nameVal,
-        phone: phoneVal,
-        phoneNumber: phoneVal,
-        contactNumber: phoneVal,
-        currentSchool: schoolVal,
-        school: schoolVal,
-        user: { 
-          name: nameVal,
-          phone: phoneVal,
-          school: schoolVal
-        },
-        currentCounty: item.county || item.currentCounty || 'N/A'
-      };
-    });
-
-    // Support both direct array and wrapped formats for Flutter compatibility
+    // Return direct array for Flutter list parser compatibility
     res.status(200).json(formattedListings);
   } catch (err) {
     console.error('Error fetching listings by type:', err);
