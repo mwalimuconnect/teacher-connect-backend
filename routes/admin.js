@@ -68,9 +68,39 @@ try {
 // GET /api/admin/pending-listings
 router.get('/pending-listings', async (req, res) => {
   try {
-    const pendingListings = await Listing.find({ status: { $regex: /^pending$/i } }).sort({ createdAt: -1 });
-    res.json(pendingListings);
+    const pendingListings = await Listing.find({ 
+      status: { $regex: /^pending$/i } 
+    }).sort({ createdAt: -1 });
+
+    const formattedListings = pendingListings.map(item => {
+      const doc = item._doc || item;
+      const phoneVal = item.phone || item.contactPhone || item.phoneNumber || item.contactNumber || 'N/A';
+      const schoolVal = item.currentSchool || item.school || item.schoolName || 'N/A';
+      const nameVal = item.fullName || item.teacherName || 'N/A';
+
+      return {
+        ...doc,
+        teacherName: nameVal,
+        phone: phoneVal,
+        phoneNumber: phoneVal,
+        currentSchool: schoolVal,
+        school: schoolVal,
+        user: { 
+          name: nameVal,
+          phone: phoneVal 
+        }
+      };
+    });
+
+    // Return object containing success flag, listings array, data array, and array direct support
+    res.status(200).json({
+      success: true,
+      count: formattedListings.length,
+      listings: formattedListings,
+      data: formattedListings
+    });
   } catch (error) {
+    console.error('Error fetching pending listings:', error);
     res.status(500).json({ error: 'Failed to fetch pending listings' });
   }
 });
