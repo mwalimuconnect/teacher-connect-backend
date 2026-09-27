@@ -1,15 +1,7 @@
-const express = require('express');
-const router = express.Router();
-const Listing = require('../models/Listing');
-const User = require('../models/User');
-
 // GET /api/admin/stats
 router.get('/stats', async (req, res) => {
   try {
-    // 1. Count all listings
     const totalListings = await Listing.countDocuments();
-
-    // 2. Count pending approvals (handles 'Pending', 'pending', or missing status)
     const pendingApprovals = await Listing.countDocuments({
       $or: [
         { status: { $regex: /^pending$/i } },
@@ -17,11 +9,8 @@ router.get('/stats', async (req, res) => {
         { status: null }
       ]
     });
-
-    // 3. Count registered users
     const totalMembers = await User.countDocuments();
 
-    // 4. Calculate completed payments safely
     let totalPayments = 0;
     try {
       const mongoose = require('mongoose');
@@ -39,21 +28,36 @@ router.get('/stats', async (req, res) => {
       totalPayments = 0;
     }
 
-    res.status(200).json({
+    // Comprehensive payload covering all JSON key naming conventions
+    const statsPayload = {
       success: true,
       totalListings,
       pendingApprovals,
       totalPayments,
       paymentsReceived: totalPayments,
       totalMembers,
+      // snake_case fallbacks
+      total_listings: totalListings,
+      pending_approvals: pendingApprovals,
+      total_payments: totalPayments,
+      payments_received: totalPayments,
+      total_members: totalMembers,
+      // nested data wrapper
       data: {
         totalListings,
         pendingApprovals,
         totalPayments,
         paymentsReceived: totalPayments,
-        totalMembers
+        totalMembers,
+        total_listings: totalListings,
+        pending_approvals: pendingApprovals,
+        total_payments: totalPayments,
+        payments_received: totalPayments,
+        total_members: totalMembers
       }
-    });
+    };
+
+    res.status(200).json(statsPayload);
   } catch (error) {
     console.error('Error fetching admin stats:', error);
     res.status(500).json({ error: 'Failed to compute stats' });
