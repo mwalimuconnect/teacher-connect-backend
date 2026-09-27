@@ -1,6 +1,5 @@
 const express = require('express');
 const router = express.Router();
-const mongoose = require('mongoose');
 
 const Listing = require('../models/Listing');
 const User = require('../models/User');
@@ -10,7 +9,7 @@ router.get('/stats', async (req, res) => {
   try {
     const totalListings = await Listing.countDocuments();
 
-    // Case-insensitive regex to capture both 'Pending' and 'pending'
+    // Fix: Case-insensitive regex to catch both 'Pending' and 'pending'
     const pendingApprovals = await Listing.countDocuments({
       status: { $regex: /^pending$/i }
     });
@@ -19,7 +18,8 @@ router.get('/stats', async (req, res) => {
 
     let totalPayments = 0;
     try {
-      // Safely access the Payment model registered with Mongoose
+      const mongoose = require('mongoose');
+      // Retrieve the Payment model directly from Mongoose's registered models
       const PaymentModel = mongoose.models.Payment;
 
       if (PaymentModel) {
@@ -27,17 +27,16 @@ router.get('/stats', async (req, res) => {
           { $match: { status: { $regex: /^completed$/i } } },
           { $group: { _id: null, total: { $sum: '$amount' } } }
         ]);
-
         if (paymentResult && paymentResult.length > 0) {
           totalPayments = paymentResult[0].total;
         }
       }
     } catch (e) {
-      console.error('Payment aggregation skipped:', e.message);
       totalPayments = 0;
     }
 
-    res.status(200).json({
+    // Send aliases for all field name variations Flutter might check
+    res.json({
       success: true,
       totalListings,
       pendingApprovals,
@@ -61,11 +60,8 @@ router.get('/stats', async (req, res) => {
 // GET /api/admin/pending-listings
 router.get('/pending-listings', async (req, res) => {
   try {
-    const pendingListings = await Listing.find({
-      status: { $regex: /^pending$/i }
-    }).sort({ createdAt: -1 });
-
-    res.status(200).json(pendingListings);
+    const pendingListings = await Listing.find({ status: { $regex: /^pending$/i } }).sort({ createdAt: -1 });
+    res.json(pendingListings);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch pending listings' });
   }
@@ -77,20 +73,20 @@ router.patch('/approve-listing/:id', async (req, res) => {
     const { status } = req.body;
     const updatedListing = await Listing.findByIdAndUpdate(
       req.params.id,
-      { status: status || 'Approved' },
+      { status },
       { new: true }
     );
-    res.status(200).json(updatedListing);
+    res.json(updatedListing);
   } catch (error) {
     res.status(500).json({ error: 'Failed to update listing status' });
   }
 });
 
-// GET /api/admin/bom-vacancies
+// GET /api/admin/bom-vacancies (Fetch all school vacancy posts)
 router.get('/bom-vacancies', async (req, res) => {
   try {
     const vacancies = await Listing.find({
-      type: { $regex: /bom_vacancy/i }
+      type: { $regex: /bom_?vacancy/i }
     }).sort({ createdAt: -1 });
 
     res.status(200).json({
@@ -104,11 +100,11 @@ router.get('/bom-vacancies', async (req, res) => {
   }
 });
 
-// GET /api/admin/bom-seekers
+// GET /api/admin/bom-seekers (Fetch all teacher job seeker profiles)
 router.get('/bom-seekers', async (req, res) => {
   try {
     const seekers = await Listing.find({
-      type: { $regex: /bom_seeker/i }
+      type: { $regex: /bom_?seeker/i }
     }).sort({ createdAt: -1 });
 
     res.status(200).json({
@@ -122,11 +118,11 @@ router.get('/bom-seekers', async (req, res) => {
   }
 });
 
-// DELETE /api/admin/listing/:id
+// DELETE /api/admin/listing/:id (Delete any listing/vacancy)
 router.delete('/listing/:id', async (req, res) => {
   try {
     await Listing.findByIdAndDelete(req.params.id);
-    res.status(200).json({ message: 'Listing deleted successfully' });
+    res.json({ message: 'Listing deleted successfully' });
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete listing' });
   }
