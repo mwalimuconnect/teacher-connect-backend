@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 // Import your Resource model (adjust path if needed)
-const Resource = require('../models/Resource'); 
+const Resource = require('../models/TeacherResource'); 
 
 // GET all resources
 router.get('/', async (req, res) => {
