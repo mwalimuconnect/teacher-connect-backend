@@ -14,7 +14,15 @@ router.get('/stats', async (req, res) => {
       status: { $regex: /^pending$/i }
     });
 
-    const totalMembers = await User.countDocuments();
+    let totalMembers = 0;
+try {
+  const UserModel = mongoose.models.User || User;
+  if (UserModel && typeof UserModel.countDocuments === 'function') {
+    totalMembers = await UserModel.countDocuments();
+  }
+} catch (e) {
+  totalMembers = 0;
+}
 
     let totalPayments = 0;
     try {
