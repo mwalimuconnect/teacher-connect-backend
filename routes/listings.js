@@ -49,10 +49,25 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/listings/type/:type - Fetch listings by specific type
+// GET /api/listings/type/:type - Fetch listings flexibly by tab type
 router.get('/type/:type', async (req, res) => {
   try {
-    const listings = await Listing.find({ type: { $regex: new RegExp(`^${req.params.type}$`, 'i') } }).sort({ createdAt: -1 });
+    const requestedType = req.params.type;
+    let typeQuery = {};
+
+    // Flexible matching for different tab categories
+    if (/swap/i.test(requestedType)) {
+      typeQuery = { type: { $regex: /swap/i } };
+    } else if (/job|vacancy/i.test(requestedType)) {
+      typeQuery = { type: { $regex: /job|vacancy/i } };
+    } else if (/seeking|seeker/i.test(requestedType)) {
+      typeQuery = { type: { $regex: /seeking|seeker/i } };
+    } else {
+      typeQuery = { type: { $regex: new RegExp(requestedType, 'i') } };
+    }
+
+    // Fetch matching listings (sorted newest first)
+    const listings = await Listing.find(typeQuery).sort({ createdAt: -1 });
 
     const formattedListings = listings.map(item => {
       const doc = item._doc || item;
@@ -77,6 +92,7 @@ router.get('/type/:type', async (req, res) => {
       };
     });
 
+    // Support both direct array and wrapped formats for Flutter compatibility
     res.status(200).json(formattedListings);
   } catch (err) {
     console.error('Error fetching listings by type:', err);
