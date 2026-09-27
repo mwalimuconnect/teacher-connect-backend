@@ -7,18 +7,28 @@ router.get('/', async (req, res) => {
   try {
     const filter = {};
     if (req.query.type) {
-      // Case-insensitive regex match for 'TSC Swap', 'BOM Job', etc.
       filter.type = { $regex: new RegExp(`^${req.query.type}$`, 'i') };
     }
 
     const listings = await Listing.find(filter).sort({ createdAt: -1 });
 
+    // Format each listing to map teacher names directly for Flutter
+    const formattedListings = listings.map(item => {
+      const doc = item._doc || item;
+      return {
+        ...doc,
+        teacherName: item.fullName || item.teacherName || 'N/A',
+        user: { name: item.fullName || item.teacherName || 'N/A' },
+        currentCounty: item.county || item.currentCounty || 'N/A'
+      };
+    });
+
     // Send BOTH top-level object wrapper and array to support both Flutter parsers
     res.status(200).json({
       success: true,
-      count: listings.length,
-      listings: listings,
-      data: listings
+      count: formattedListings.length,
+      listings: formattedListings,
+      data: formattedListings
     });
   } catch (err) {
     console.error('Error fetching listings:', err);
