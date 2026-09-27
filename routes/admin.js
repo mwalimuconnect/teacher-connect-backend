@@ -6,12 +6,22 @@ const User = require('../models/User');
 // GET /api/admin/stats
 router.get('/stats', async (req, res) => {
   try {
+    // 1. Count all listings
     const totalListings = await Listing.countDocuments();
+
+    // 2. Count pending approvals (handles 'Pending', 'pending', or missing status)
     const pendingApprovals = await Listing.countDocuments({
-      status: { $regex: /^pending$/i }
+      $or: [
+        { status: { $regex: /^pending$/i } },
+        { status: { $exists: false } },
+        { status: null }
+      ]
     });
+
+    // 3. Count registered users
     const totalMembers = await User.countDocuments();
 
+    // 4. Calculate completed payments safely
     let totalPayments = 0;
     try {
       const mongoose = require('mongoose');
@@ -29,7 +39,7 @@ router.get('/stats', async (req, res) => {
       totalPayments = 0;
     }
 
-    res.json({
+    res.status(200).json({
       success: true,
       totalListings,
       pendingApprovals,
@@ -54,9 +64,14 @@ router.get('/stats', async (req, res) => {
 router.get('/pending-listings', async (req, res) => {
   try {
     const pendingListings = await Listing.find({
-      status: { $regex: /^pending$/i }
-    });
-    res.json(pendingListings);
+      $or: [
+        { status: { $regex: /^pending$/i } },
+        { status: { $exists: false } },
+        { status: null }
+      ]
+    }).sort({ createdAt: -1 });
+
+    res.status(200).json(pendingListings);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch pending listings' });
   }
@@ -68,10 +83,10 @@ router.patch('/approve-listing/:id', async (req, res) => {
     const { status } = req.body;
     const updatedListing = await Listing.findByIdAndUpdate(
       req.params.id,
-      { status },
+      { status: status || 'Approved' },
       { new: true }
     );
-    res.json(updatedListing);
+    res.status(200).json(updatedListing);
   } catch (error) {
     res.status(500).json({ error: 'Failed to update listing status' });
   }
@@ -117,7 +132,7 @@ router.get('/bom-seekers', async (req, res) => {
 router.delete('/listing/:id', async (req, res) => {
   try {
     await Listing.findByIdAndDelete(req.params.id);
-    res.json({ message: 'Listing deleted successfully' });
+    res.status(200).json({ message: 'Listing deleted successfully' });
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete listing' });
   }
