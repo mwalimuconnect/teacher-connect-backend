@@ -15,15 +15,20 @@ router.get('/stats', async (req, res) => {
 
     const totalMembers = await User.countDocuments();
 
-    let totalPayments = 0;
+      let totalPayments = 0;
     try {
-      const Payment = require('../models/Payment');
-      const paymentResult = await Payment.aggregate([
-        { $match: { status: { $regex: /^completed$/i } } },
-        { $group: { _id: null, total: { $sum: '$amount' } } }
-      ]);
-      if (paymentResult.length > 0) {
-        totalPayments = paymentResult[0].total;
+      const mongoose = require('mongoose');
+      // Retrieve the Payment model directly from Mongoose's registered models
+      const PaymentModel = mongoose.models.Payment;
+
+      if (PaymentModel) {
+        const paymentResult = await PaymentModel.aggregate([
+          { $match: { status: { $regex: /^completed$/i } } },
+          { $group: { _id: null, total: { $sum: '$amount' } } }
+        ]);
+        if (paymentResult && paymentResult.length > 0) {
+          totalPayments = paymentResult[0].total;
+        }
       }
     } catch (e) {
       totalPayments = 0;
