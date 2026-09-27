@@ -43,7 +43,7 @@ app.use('/api/listings', require('./routes/listings'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/mpesa', mpesaRoutes);
-
+app.use('/api/resources', require('./routes/resources'));
 app.get('/', (req, res) => {
   res.send('Teacher Connect API is running');
 });
