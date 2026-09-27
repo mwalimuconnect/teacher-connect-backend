@@ -6,15 +6,20 @@ const User = require('../models/User');
 // GET /api/admin/stats
 router.get('/stats', async (req, res) => {
   try {
-    const totalListings = await Listing.countDocuments({});
-    const pendingApprovals = await Listing.countDocuments({ status: 'pending' });
-    const totalMembers = await User.countDocuments({});
+    const totalListings = await Listing.countDocuments();
+
+    // Fix: Case-insensitive regex to catch both 'Pending' and 'pending'
+    const pendingApprovals = await Listing.countDocuments({ 
+      status: { $regex: /^pending$/i } 
+    });
+
+    const totalMembers = await User.countDocuments();
 
     let totalPayments = 0;
     try {
       const Payment = require('../models/Payment');
       const paymentResult = await Payment.aggregate([
-        { $match: { status: 'Completed' } },
+        { $match: { status: { $regex: /^completed$/i } } },
         { $group: { _id: null, total: { $sum: '$amount' } } }
       ]);
       if (paymentResult.length > 0) {
@@ -24,22 +29,31 @@ router.get('/stats', async (req, res) => {
       totalPayments = 0;
     }
 
+    // Send aliases for all field name variations Flutter might check
     res.json({
+      success: true,
       totalListings,
       pendingApprovals,
       totalPayments,
-      totalMembers
+      paymentsReceived: totalPayments,
+      totalMembers,
+      data: {
+        totalListings,
+        pendingApprovals,
+        totalPayments,
+        paymentsReceived: totalPayments,
+        totalMembers
+      }
     });
   } catch (error) {
     console.error('Error fetching admin stats:', error);
     res.status(500).json({ error: 'Failed to compute stats' });
   }
 });
-
 // GET /api/admin/pending-listings
 router.get('/pending-listings', async (req, res) => {
   try {
-    const pendingListings = await Listing.find({ status: 'pending' }).sort({ createdAt: -1 });
+    const pendingListings = await Listing.find({ status: { $regex: /^pending$/i } }).sort({ createdAt: -1 });
     res.json(pendingListings);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch pending listings' });
