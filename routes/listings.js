@@ -30,7 +30,23 @@ router.get('/', async (req, res) => {
 router.get('/type/:type', async (req, res) => {
   try {
     const listings = await Listing.find({ type: req.params.type }).sort({ createdAt: -1 });
-    res.status(200).json(listings);
+
+    const formattedListings = listings.map(item => {
+      const doc = item._doc || item;
+      return {
+        ...doc,
+        teacherName: item.fullName || item.teacherName || 'N/A',
+        user: { name: item.fullName || item.teacherName || 'N/A' },
+        currentCounty: item.county || item.currentCounty || 'N/A'
+      };
+    });
+
+    res.status(200).json(formattedListings);
+  } catch (err) {
+    console.error('Error fetching listings by type:', err);
+    res.status(500).json({ error: err.message || 'Failed to fetch listings by type' });
+  }
+});
   } catch (err) {
     console.error('Error fetching listings by type:', err);
     res.status(500).json({ error: err.message || 'Failed to fetch listings by type' });
