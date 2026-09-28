@@ -52,30 +52,53 @@ router.get('/', async (req, res) => {
     res.status(500).json({ error: err.message || 'Failed to fetch listings' });
   }
 });
-// GET /api/listings/type/:type - Fetch listings by category (BOM Vacancies, Job Seekers, Swaps)
+// GET /api/listings/type/:type - Fetch listings by category
 router.get('/type/:type', async (req, res) => {
   try {
-    const requestedType = req.params.type;
+    const requestedType = req.params.type.toLowerCase();
     let typeQuery = {};
 
-    if (/swap/i.test(requestedType)) {
-      typeQuery = { type: { $regex: /swap/i } };
-    } else if (/vacancy|job/i.test(requestedType) && !/seeker/i.test(requestedType)) {
-      typeQuery = { type: { $regex: /vacancy|job/i } };
-    } else if (/seeker|seeking/i.test(requestedType)) {
-      typeQuery = { type: { $regex: /seeker|seeking/i } };
+    if (requestedType.includes('swap')) {
+      typeQuery = {
+        $or: [
+          { type: { $regex: /swap/i } },
+          { category: { $regex: /swap/i } },
+          { type: { $exists: false } }, // Catches older listings created without a type
+          { type: null }
+        ]
+      };
+    } else if (requestedType.includes('job') || requestedType.includes('vacancy') || requestedType.includes('bom')) {
+      if (requestedType.includes('seeker')) {
+        typeQuery = {
+          $or: [
+            { type: { $regex: /seeker|seeking/i } },
+            { category: { $regex: /seeker|seeking/i } }
+          ]
+        };
+      } else {
+        typeQuery = {
+          $or: [
+            { type: { $regex: /vacancy|job|bom/i } },
+            { category: { $regex: /vacancy|job|bom/i } }
+          ]
+        };
+      }
     } else {
-      typeQuery = { type: { $regex: new RegExp(requestedType, 'i') } };
+      typeQuery = {
+        $or: [
+          { type: { $regex: new RegExp(requestedType, 'i') } },
+          { category: { $regex: new RegExp(requestedType, 'i') } }
+        ]
+      };
     }
 
     const listings = await Listing.find(typeQuery).sort({ createdAt: -1 });
     const formatted = listings.map(formatListing);
 
-    res.status(200).json(formatted);
+    return res.status(200).json(formatted);
   } catch (err) {
     console.error('Error fetching listings by type:', err);
     res.status(500).json({ error: err.message || 'Failed to fetch listings by type' });
   }
 });
-
 module.exports = router;
