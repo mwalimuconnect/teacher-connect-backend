@@ -104,16 +104,34 @@ router.post('/callback', (req, res) => {
   const resultCode = callbackData?.Body?.stkCallback?.ResultCode;
 
   if (resultCode === 0) {
-    const items = callbackData.Body.stkCallback.CallbackMetadata.Item;
-    const receipt = items.find((item) => item.Name === 'MpesaReceiptNumber')?.Value;
-    const amountPaid = items.find((item) => item.Name === 'Amount')?.Value;
+  const items = callbackData.Body.stkCallback.CallbackMetadata.Item;
+  const receipt = items.find(item => item.Name === 'MpesaReceiptNumber')?.Value;
+  const amountPaid = items.find(item => item.Name === 'Amount')?.Value;
+  const phone = items.find(item => item.Name === 'PhoneNumber')?.Value;
 
+  // Save to Database here so router.get('/history') can return it later!
+  }
     console.log(`Payment Success: Receipt ${receipt}, Amount: ${amountPaid}`);
   } else {
     console.log(`Payment Failed/Cancelled: ResultCode ${resultCode}`);
   }
 
   return res.status(200).json({ ResultCode: 0, ResultDesc: 'Accepted' });
+});
+
+// GET /api/mpesa/history - Fetch payment transaction history
+router.get('/history', async (req, res) => {
+  try {
+    // If you have a Transaction or Payment model saved in MongoDB:
+    // const payments = await Payment.find({}).sort({ createdAt: -1 });
+    // return res.status(200).json(payments);
+
+    // Default empty array response to prevent Flutter type/parsing errors
+    res.status(200).json([]);
+  } catch (error) {
+    console.error('Error fetching payment history:', error);
+    res.status(500).json({ error: 'Failed to fetch payment history' });
+  }
 });
 
 module.exports = router;
