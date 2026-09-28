@@ -6,6 +6,8 @@ const resourceRoutes = require('./routes/resources');
 const adminRoutes = require('./routes/admin');       
 const listingRoutes = require('./routes/listings');  
 const app = express();
+const uploadRoutes = require('./routes/upload');
+app.use('/api/upload', uploadRoutes);
 
 app.use(cors());
 app.use(express.json());
