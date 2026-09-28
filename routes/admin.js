@@ -27,25 +27,35 @@ const formatListing = (item) => {
   };
 };
 
-// GET /api/admin/stats - Admin Dashboard Overview Counters
+// GET /api/admin/stats - Aggregated Admin Dashboard Counters
 router.get('/stats', async (req, res) => {
   try {
+    // Count ALL records across the entire Listing collection (Swaps + BOM Vacancies + BOM Seekers)
     const totalListings = await Listing.countDocuments({});
+
+    // Count pending approvals regardless of category casing
     const pendingApprovals = await Listing.countDocuments({
       status: { $regex: /^pending$/i }
     });
 
+    // Provide multiple key variations so Flutter parses the count correctly regardless of field name
     res.status(200).json({
       success: true,
       totalListings: totalListings,
       totalCount: totalListings,
+      total: totalListings,
+      count: totalListings,
       pendingApprovals: pendingApprovals,
       pendingCount: pendingApprovals,
       paymentsReceived: 0
     });
   } catch (error) {
     console.error('Error fetching admin stats:', error);
-    res.status(500).json({ error: 'Failed to fetch admin stats' });
+    res.status(500).json({ 
+      error: 'Failed to fetch admin stats',
+      totalListings: 0,
+      pendingApprovals: 0 
+    });
   }
 });
 
