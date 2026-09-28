@@ -27,30 +27,31 @@ const formatListing = (item) => {
   };
 };
 
-// GET /api/listings - Fetch all listings or by query parameter
+// GET /api/listings - Default to Swaps unless a query type is passed
 router.get('/', async (req, res) => {
   try {
     const filter = {};
+
     if (req.query.type) {
       filter.type = { $regex: new RegExp(req.query.type, 'i') };
+    } else {
+      // DEFAULT FILTER: Only show Swap listings when no type parameter is supplied
+      filter.$or = [
+        { type: { $regex: /swap/i } },
+        { type: { $exists: false } }, // Catches older records that didn't have a type key set
+        { type: null }
+      ];
     }
 
     const listings = await Listing.find(filter).sort({ createdAt: -1 });
     const formatted = listings.map(formatListing);
 
-    // If query string was provided, return array directly
-    if (req.query.type) {
-      return res.status(200).json(formatted);
-    }
-
-    // Default response supporting both array and wrapped object parsers
-    res.status(200).json(formatted);
+    return res.status(200).json(formatted);
   } catch (err) {
     console.error('Error fetching listings:', err);
     res.status(500).json({ error: err.message || 'Failed to fetch listings' });
   }
 });
-
 // GET /api/listings/type/:type - Fetch listings by category (BOM Vacancies, Job Seekers, Swaps)
 router.get('/type/:type', async (req, res) => {
   try {
