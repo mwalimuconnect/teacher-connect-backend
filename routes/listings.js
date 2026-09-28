@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const Listing = require('../models/Listing');
+const Listing = require('../models/listing');
 
 // Helper to format listing data consistently
 const formatListing = (item) => {
@@ -18,7 +18,7 @@ const formatListing = (item) => {
     contactNumber: phoneVal,
     currentSchool: schoolVal,
     school: schoolVal,
-    user: { 
+    user: {
       name: nameVal,
       phone: phoneVal,
       school: schoolVal
@@ -27,20 +27,22 @@ const formatListing = (item) => {
   };
 };
 
-// GET /api/listings - Default to Swaps unless a query type is passed
+// GET /api/listings - Fetch all listings or filter by query string ?type=...
 router.get('/', async (req, res) => {
   try {
     const filter = {};
+    const queryType = req.query.type;
 
-    if (req.query.type) {
-      filter.type = { $regex: new RegExp(req.query.type, 'i') };
-    } else {
-      // DEFAULT FILTER: Only show Swap listings when no type parameter is supplied
-      filter.$or = [
-        { type: { $regex: /swap/i } },
-        { type: { $exists: false } }, // Catches older records that didn't have a type key set
-        { type: null }
-      ];
+    if (queryType) {
+      if (/swap/i.test(queryType)) {
+        filter.type = { $regex: /swap/i };
+      } else if (/vacancy|job/i.test(queryType) && !/seeker/i.test(queryType)) {
+        filter.type = { $regex: /vacancy|job/i };
+      } else if (/seeker|seeking/i.test(queryType)) {
+        filter.type = { $regex: /seeker|seeking/i };
+      } else {
+        filter.type = { $regex: new RegExp(queryType, 'i') };
+      }
     }
 
     const listings = await Listing.find(filter).sort({ createdAt: -1 });
@@ -52,44 +54,24 @@ router.get('/', async (req, res) => {
     res.status(500).json({ error: err.message || 'Failed to fetch listings' });
   }
 });
-// GET /api/listings/type/:type - Fetch listings by category
+
+// GET /api/listings/type/:type - Tab Endpoint matching App requests
 router.get('/type/:type', async (req, res) => {
   try {
-    const requestedType = req.params.type.toLowerCase();
+    const requestedType = req.params.type;
     let typeQuery = {};
 
-    if (requestedType.includes('swap')) {
-      typeQuery = {
-        $or: [
-          { type: { $regex: /swap/i } },
-          { category: { $regex: /swap/i } },
-          { type: { $exists: false } }, // Catches older listings created without a type
-          { type: null }
-        ]
-      };
-    } else if (requestedType.includes('job') || requestedType.includes('vacancy') || requestedType.includes('bom')) {
-      if (requestedType.includes('seeker')) {
-        typeQuery = {
-          $or: [
-            { type: { $regex: /seeker|seeking/i } },
-            { category: { $regex: /seeker|seeking/i } }
-          ]
-        };
-      } else {
-        typeQuery = {
-          $or: [
-            { type: { $regex: /vacancy|job|bom/i } },
-            { category: { $regex: /vacancy|job|bom/i } }
-          ]
-        };
-      }
+    if (/swap/i.test(requestedType)) {
+      // TSC Swap Tab: matches 'swap', 'tsc_swap', etc.
+      typeQuery = { type: { $regex: /swap/i } };
+    } else if (/vacancy|job/i.test(requestedType) && !/seeker/i.test(requestedType)) {
+      // BOM Jobs Tab: matches 'vacancy', 'job', 'bom_vacancy'
+      typeQuery = { type: { $regex: /vacancy|job/i } };
+    } else if (/seeker|seeking/i.test(requestedType)) {
+      // Seeking BOM Tab: matches 'seeker', 'seeking', 'bom_seeker'
+      typeQuery = { type: { $regex: /seeker|seeking/i } };
     } else {
-      typeQuery = {
-        $or: [
-          { type: { $regex: new RegExp(requestedType, 'i') } },
-          { category: { $regex: new RegExp(requestedType, 'i') } }
-        ]
-      };
+      typeQuery = { type: { $regex: new RegExp(requestedType, 'i') } };
     }
 
     const listings = await Listing.find(typeQuery).sort({ createdAt: -1 });
@@ -101,4 +83,5 @@ router.get('/type/:type', async (req, res) => {
     res.status(500).json({ error: err.message || 'Failed to fetch listings by type' });
   }
 });
+
 module.exports = router;
