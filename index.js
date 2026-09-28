@@ -1,16 +1,25 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+
 const mpesaRoutes = require('./routes/mpesa');
-const resourceRoutes = require('./routes/resources'); 
-const adminRoutes = require('./routes/admin');       
-const listingRoutes = require('./routes/listings');  
-const app = express();
+const resourceRoutes = require('./routes/resources');
+const adminRoutes = require('./routes/admin');
+const listingRoutes = require('./routes/listings');
 const uploadRoutes = require('./routes/upload');
-app.use('/api/upload', uploadRoutes);
+
+const app = express();
+
 
 app.use(cors());
 app.use(express.json());
+
+
+app.use('/api/mpesa', mpesaRoutes);
+app.use('/api/resources', resourceRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/listings', listingRoutes);
+app.use('/api/upload', uploadRoutes);
 
 // Serverless MongoDB Connection Cache
 let isConnected = false;
