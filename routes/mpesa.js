@@ -98,39 +98,29 @@ router.post('/stkpush', getAccessToken, async (req, res) => {
 
 // POST Route: M-Pesa Callback Endpoint
 router.post('/callback', (req, res) => {
-  const callbackData = req.body;
-  console.log('M-Pesa Callback Received:', JSON.stringify(callbackData, null, 2));
-
-  const resultCode = callbackData?.Body?.stkCallback?.ResultCode;
-
-  if (resultCode === 0) {
-  const items = callbackData.Body.stkCallback.CallbackMetadata.Item;
-  const receipt = items.find(item => item.Name === 'MpesaReceiptNumber')?.Value;
-  const amountPaid = items.find(item => item.Name === 'Amount')?.Value;
-  const phone = items.find(item => item.Name === 'PhoneNumber')?.Value;
-
-  // Save to Database here so router.get('/history') can return it later!
-  }
-    console.log(`Payment Success: Receipt ${receipt}, Amount: ${amountPaid}`);
-  } else {
-    console.log(`Payment Failed/Cancelled: ResultCode ${resultCode}`);
-  }
-
-  return res.status(200).json({ ResultCode: 0, ResultDesc: 'Accepted' });
-});
-
-// GET /api/mpesa/history - Fetch payment transaction history
-router.get('/history', async (req, res) => {
   try {
-    // If you have a Transaction or Payment model saved in MongoDB:
-    // const payments = await Payment.find({}).sort({ createdAt: -1 });
-    // return res.status(200).json(payments);
+    const callbackData = req.body;
+    console.log('M-Pesa Callback Received:', JSON.stringify(callbackData, null, 2));
 
-    // Default empty array response to prevent Flutter type/parsing errors
-    res.status(200).json([]);
+    const stkCallback = callbackData?.Body?.stkCallback;
+    const resultCode = stkCallback?.ResultCode;
+
+    if (resultCode === 0) {
+      const items = stkCallback?.CallbackMetadata?.Item || [];
+      const receipt = items.find((item) => item.Name === 'MpesaReceiptNumber')?.Value;
+      const amountPaid = items.find((item) => item.Name === 'Amount')?.Value;
+
+      console.log(`Payment Success: Receipt ${receipt}, Amount: ${amountPaid}`);
+    } else {
+      console.log(`Payment Failed/Cancelled: ResultCode ${resultCode}`);
+    }
+
+    // Always respond to Safaricom with 200 OK so they don't retry failed requests
+    return res.status(200).json({ ResultCode: 0, ResultDesc: "Accepted" });
   } catch (error) {
-    console.error('Error fetching payment history:', error);
-    res.status(500).json({ error: 'Failed to fetch payment history' });
+    console.error('Callback parsing error:', error);
+    // Still return 200 to Safaricom to prevent repeated serverless function crashes
+    return res.status(200).json({ ResultCode: 0, ResultDesc: "Accepted with errors" });
   }
 });
 
