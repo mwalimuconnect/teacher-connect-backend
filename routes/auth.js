@@ -1,86 +1,88 @@
 const express = require('express');
 const router = express.Router();
-const User = require('../models/User');
+const User = require('../models/User'); // Adjust path to your User model if needed
 
-// REGISTER ENDPOINT: POST /api/auth/register
-router.post('/register', async (req, res) => {
+// POST /api/auth/register-or-login
+router.post('/register-or-login', async (req, res) => {
   try {
     const { fullName, tscNumber, phone, nationalId, role } = req.body;
 
-    if (!fullName || !tscNumber || !phone || !nationalId) {
+    // 1. Strict Format Validation
+    const cleanPhone = (phone || '').replace(/\s+/g, '');
+    const cleanTsc = (tscNumber || '').trim();
+    const cleanId = (nationalId || '').trim();
+
+    // Reject dummy phone numbers (e.g. 0712345678, 0700000000)
+    const invalidPhones = ['0712345678', '0700000000', '0123456789', '0711111111'];
+    if (invalidPhones.includes(cleanPhone) || !/^(07|01|\+254)[0-9]{8}$/.test(cleanPhone)) {
       return res.status(400).json({ 
-        message: 'All fields (Full Name, TSC Number, Phone, National ID) are required.' 
+        error: 'Please enter a valid Kenyan phone number (e.g., 0712345678 is reserved for testing).' 
       });
     }
 
-    const existingUser = await User.findOne({
-      $or: [{ tscNumber }, { nationalId }]
-    });
-
-    if (existingUser) {
-      return res.status(400).json({ 
-        message: 'A user with this TSC Number or National ID already exists.' 
-      });
+    // Reject dummy TSC/ID numbers (must be valid 6-8 digits)
+    const dummyPatterns = ['123456', '1234567', '12345678', '000000', '111111'];
+    if (dummyPatterns.includes(cleanTsc) || cleanTsc.length < 5) {
+      return res.status(400).json({ error: 'Please provide a valid TSC Number.' });
     }
 
-    const newUser = new User({
-      fullName,
-      tscNumber,
-      phone,
-      nationalId,
-      role: role || 'Member Teacher'
-    });
-
-    await newUser.save();
-
-    return res.status(201).json({
-      message: 'Registration successful!',
-      user: {
-        id: newUser._id,
-        fullName: newUser.fullName,
-        tscNumber: newUser.tscNumber,
-        phone: newUser.phone,
-        role: newUser.role
-      }
-    });
-  } catch (error) {
-    console.error('Registration Error:', error);
-    return res.status(500).json({ message: 'Server error during registration.' });
-  }
-});
-
-// LOGIN ENDPOINT: POST /api/auth/login
-router.post('/login', async (req, res) => {
-  try {
-    const { tscNumber, nationalId } = req.body;
-
-    if (!tscNumber || !nationalId) {
-      return res.status(400).json({ 
-        message: 'Both TSC Number and National ID are required.' 
-      });
+    if (dummyPatterns.includes(cleanId) || cleanId.length < 6) {
+      return res.status(400).json({ error: 'Please provide a valid National ID Number.' });
     }
 
-    const user = await User.findOne({ tscNumber, nationalId });
+    // 2. Lookup existing user by phone or ID
+    let user = await User.findOne({
+      $or: [{ phone: cleanPhone }, { nationalId: cleanId }, { tscNumber: cleanTsc }]
+    });
 
     if (!user) {
-      return res.status(401).json({ 
-        message: 'Invalid TSC Number or National ID.' 
+      // REGISTER NEW USER -> Default status is set to PENDING for Admin Approval
+      const isAdminRole = (role || '').toLowerCase().includes('admin') || cleanPhone === '0700000000'; // Define super-admin phone if needed
+      
+      user = new User({
+        fullName,
+        tscNumber: cleanTsc,
+        phone: cleanPhone,
+        nationalId: cleanId,
+        role: role || 'Member Teacher',
+        status: isAdminRole ? 'approved' : 'pending', // Require Admin Approval for standard teachers
+        isApproved: isAdminRole
+      });
+
+      await user.save();
+    }
+
+    // 3. Admin Approval Check during login attempt
+    if (user.status === 'pending' || user.isApproved === false) {
+      return res.status(403).json({
+        error: 'Your account is pending admin approval. Please wait for an admin to activate your profile.',
+        pendingApproval: true
       });
     }
 
-    return res.status(200).json({
-      message: 'Login successful!',
+    if (user.status === 'rejected') {
+      return res.status(403).json({
+        error: 'Your account registration was rejected by the administrator.'
+      });
+    }
+
+    // 4. Return successful response with User details & Token
+    res.status(200).json({
+      success: true,
       user: {
         id: user._id,
         fullName: user.fullName,
-        tscNumber: user.tscNumber,
         phone: user.phone,
-        role: user.role
-      }
+        tscNumber: user.tscNumber,
+        role: user.role,
+        status: user.status
+      },
+      token: 'jwt-token-placeholder' // Include your JWT signing logic here if applicable
     });
+
   } catch (error) {
-    console.error('Login Error:', error);
-    return res.status(500).json({ message: 'Server error during login.' });
+    console.error('Registration/Login Error:', error);
+    res.status(500).json({ error: 'Server error during authentication processing.' });
   }
 });
 
