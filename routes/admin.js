@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Listing = require('../models/Listing');
 
-// Helper to format listing data for Flutter UI
+// Uniform listing formatter for Flutter parsing
 const formatListing = (item) => {
   const doc = item._doc || item;
   const phoneVal = item.phone || item.contactPhone || item.phoneNumber || item.contactNumber || 'N/A';
@@ -37,9 +37,9 @@ router.get('/stats', async (req, res) => {
 
     res.status(200).json({
       success: true,
-      totalListings,
+      totalListings: totalListings,
       totalCount: totalListings,
-      pendingApprovals,
+      pendingApprovals: pendingApprovals,
       pendingCount: pendingApprovals,
       paymentsReceived: 0
     });
@@ -49,56 +49,53 @@ router.get('/stats', async (req, res) => {
   }
 });
 
-// GET /api/admin/bom-vacancies - Fetch all BOM Vacancy posts
+// GET /api/admin/bom-vacancies - Fetch all BOM Vacancies
 router.get('/bom-vacancies', async (req, res) => {
   try {
     const vacancies = await Listing.find({
       type: { $regex: /vacancy|job/i }
     }).sort({ createdAt: -1 });
 
-    const formatted = vacancies.map(formatListing);
-    res.status(200).json(formatted);
+    res.status(200).json(vacancies.map(formatListing));
   } catch (error) {
     console.error('Error fetching BOM vacancies:', error);
     res.status(500).json({ error: 'Failed to fetch BOM vacancies' });
   }
 });
 
-// GET /api/admin/bom-seekers - Fetch all BOM Job Seeker posts
+// GET /api/admin/bom-seekers - Fetch all BOM Job Seekers
 router.get('/bom-seekers', async (req, res) => {
   try {
     const seekers = await Listing.find({
       type: { $regex: /seeker|seeking/i }
     }).sort({ createdAt: -1 });
 
-    const formatted = seekers.map(formatListing);
-    res.status(200).json(formatted);
+    res.status(200).json(seekers.map(formatListing));
   } catch (error) {
     console.error('Error fetching BOM seekers:', error);
     res.status(500).json({ error: 'Failed to fetch BOM seekers' });
   }
 });
 
-// GET /api/admin/pending-listings - Fetch all Pending Approvals
+// GET /api/admin/pending-listings - Fetch Pending Approvals
 router.get('/pending-listings', async (req, res) => {
   try {
     const pendingListings = await Listing.find({
       status: { $regex: /^pending$/i }
     }).sort({ createdAt: -1 });
 
-    const formatted = pendingListings.map(formatListing);
-    res.status(200).json(formatted);
+    res.status(200).json(pendingListings.map(formatListing));
   } catch (error) {
     console.error('Error fetching pending listings:', error);
     res.status(500).json({ error: 'Failed to fetch pending listings' });
   }
 });
 
-// DELETE /api/admin/listing/:id - Delete a listing
+// DELETE /api/admin/listing/:id - Delete listing
 router.delete('/listing/:id', async (req, res) => {
   try {
     await Listing.findByIdAndDelete(req.params.id);
-    res.json({ message: 'Listing deleted successfully' });
+    res.status(200).json({ message: 'Listing deleted successfully' });
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete listing' });
   }
