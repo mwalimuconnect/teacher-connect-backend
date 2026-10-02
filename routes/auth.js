@@ -13,7 +13,7 @@ router.post('/register', async (req, res) => {
 
     // Strict Format Validation
     const invalidPhones = ['0712345678', '0700000000', '0123456789', '0711111111'];
-    if (invalidPhones.includes(cleanPhone) || !/^(07|01|\+254)[0-9]{8}$/.test(cleanPhone)) {
+    if (invalidPhones.includes(cleanPhone) || !/^(07|01|\+254)(0-9){8}$/.test(cleanPhone)) {
       return res.status(400).json({ error: 'Please enter a valid Kenyan phone number.' });
     }
 
@@ -80,6 +80,7 @@ router.post('/register', async (req, res) => {
       },
       token: 'jwt-token-placeholder'
     });
+
   } catch (error) {
     console.error('Registration Error:', error);
     res.status(500).json({ error: 'Server error during registration processing.' });
@@ -128,9 +129,42 @@ router.post('/login', async (req, res) => {
       },
       token: 'jwt-token-placeholder'
     });
+
   } catch (error) {
     console.error('Login Error:', error);
     res.status(500).json({ error: 'Server error during login processing.' });
+  }
+});
+
+// 3. ADMIN VERIFICATION ENDPOINT (/api/auth/admin/verify)
+router.post('/admin/verify', (req, res) => {
+  try {
+    const { passcode } = req.body;
+
+    if (!passcode) {
+      return res.status(400).json({
+        success: false,
+        message: 'Passcode is required.'
+      });
+    }
+
+    // Compares against ADMIN_PASSCODE defined in Vercel / .env environment variables
+    if (passcode === process.env.ADMIN_PASSCODE) {
+      return res.status(200).json({
+        success: true,
+        message: 'Admin passcode verified successfully.'
+      });
+    } else {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid admin passcode.'
+      });
+    }
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: 'Server error during passcode verification.'
+    });
   }
 });
 
