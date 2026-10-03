@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 
-const user = require('../models/user');
+const User = require('../models/User'); 
 
 // =========================================================================
 // 1. REGISTER ENDPOINT (/api/auth/register)
@@ -12,16 +12,15 @@ router.post('/register', async (req, res) => {
       fullName,
       tscNumber,
       nationalId,
-      idNumber, // Accept both nationalId or idNumber from Flutter
+      idNumber,
       phone,
-      phoneNumber, // Accept both phone or phoneNumber from Flutter
+      phoneNumber,
       currentSchool,
       role,
       password,
       adminPasscode
     } = req.body;
 
-    // Standardize input fields across frontends
     const rawPhone = phoneNumber || phone || '';
     const rawId = nationalId || idNumber || '';
     const rawTsc = tscNumber || '';
@@ -30,7 +29,6 @@ router.post('/register', async (req, res) => {
     const cleanTsc = rawTsc.trim();
     const cleanId = rawId.trim();
 
-    // Basic Validation
     if (!fullName || !cleanPhone || !password) {
       return res.status(400).json({
         success: false,
@@ -38,7 +36,6 @@ router.post('/register', async (req, res) => {
       });
     }
 
-    // Strict Format Validation
     const invalidPhones = ['0712345678', '0700000000', '0123456789', '0711111111'];
     const kenyanPhoneRegex = /^(07|01|\+254)[0-9]{8}$/;
 
@@ -49,7 +46,6 @@ router.post('/register', async (req, res) => {
       });
     }
 
-    // Admin Verification Passcode Check
     const isAdminRole = (role || '').toLowerCase().includes('admin');
     if (isAdminRole) {
       const expectedPasscode = process.env.ADMIN_PASSCODE || '31079824';
@@ -61,12 +57,10 @@ router.post('/register', async (req, res) => {
       }
     }
 
-    // Build lookup query array safely
     const orConditions = [{ phone: cleanPhone }];
     if (cleanId) orConditions.push({ nationalId: cleanId });
     if (cleanTsc) orConditions.push({ tscNumber: cleanTsc });
 
-    // Lookup existing user by phone, nationalId, or tscNumber
     const existingUser = await User.findOne({ $or: orConditions });
 
     if (existingUser) {
@@ -76,7 +70,6 @@ router.post('/register', async (req, res) => {
       });
     }
 
-    // Create New User
     const user = new User({
       fullName: fullName.trim(),
       tscNumber: cleanTsc,
@@ -84,7 +77,7 @@ router.post('/register', async (req, res) => {
       nationalId: cleanId,
       currentSchool: currentSchool ? currentSchool.trim() : '',
       role: role || 'Member Teacher',
-      password, // Note: Consider hashing with bcrypt in production
+      password,
       status: isAdminRole ? 'approved' : 'pending',
       isApproved: isAdminRole
     });
@@ -161,7 +154,6 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // Admin Approval Check
     if (user.status === 'pending' || user.isApproved === false) {
       return res.status(403).json({
         success: false,
