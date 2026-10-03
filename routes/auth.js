@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 
-const user = require('../models/User');
+const user = require('../models/user');
 
 // =========================================================================
 // 1. REGISTER ENDPOINT (/api/auth/register)
