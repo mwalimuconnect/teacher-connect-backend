@@ -1,107 +1,17 @@
-const express = require("express");
-const router = express.Router();
-const User = require("../models/User"); // Import your Mongoose User model
+const mongoose = require('mongoose');
 
-// Hardcoded or environment-based passcode
-const CORRECT_ADMIN_PASSCODE = process.env.ADMIN_PASSCODE || "31079824";
+const userSchema = new mongoose.Schema(
+  {
+    fullName: { type: String, required: true, trim: true },
+    tscNumber: { type: String, default: '', trim: true },
+    phone: { type: String, required: true, unique: true, trim: true },
+    nationalId: { type: String, default: '', trim: true },
+    role: { type: String, default: 'Member Teacher' },
+    password: { type: String, required: true },
+    status: { type: String, default: 'pending' },
+    isApproved: { type: Boolean, default: false }
+  },
+  { timestamps: true }
+);
 
-// REGISTER ENDPOINT: POST /api/auth/register
-router.post("/register", async (req, res) => {
-  try {
-    const { fullName, tscNumber, phone, nationalId, role, adminPasscode } = req.body;
-
-    // 1. Check required fields
-    if (!fullName || !tscNumber || !phone || !nationalId) {
-      return res.status(400).json({
-        message: "All fields (Full Name, TSC Number, Phone, National ID) are required.",
-      });
-    }
-
-    // 2. Passcode verification for Admin roles
-    const selectedRole = role || "Member Teacher";
-    if (selectedRole === "Administrator" || selectedRole === "Assistant Admin") {
-      if (!adminPasscode || adminPasscode.trim() !== CORRECT_ADMIN_PASSCODE) {
-        return res.status(401).json({
-          message: "Invalid or missing Admin Passcode.",
-        });
-      }
-    }
-
-    // 3. Check if user already exists by TSC Number or National ID
-    const existingUser = await User.findOne({
-      $or: [{ tscNumber }, { nationalId }],
-    });
-
-    if (existingUser) {
-      return res.status(400).json({
-        message: "A user with this TSC Number or National ID already exists.",
-      });
-    }
-
-    // 4. Create new user
-    const newUser = new User({
-      fullName,
-      tscNumber,
-      phone,
-      nationalId,
-      role: selectedRole,
-    });
-
-    await newUser.save();
-
-    // 5. Return user info matching Flutter's expectations
-    return res.status(201).json({
-      message: "Registration successful!",
-      user: {
-        id: newUser._id,
-        fullName: newUser.fullName,
-        tscNumber: newUser.tscNumber,
-        phone: newUser.phone,
-        role: newUser.role,
-      },
-    });
-  } catch (error) {
-    console.error("Registration Error:", error);
-    return res.status(500).json({ message: "Server error during registration." });
-  }
-});
-
-// LOGIN ENDPOINT: POST /api/auth/login
-router.post("/login", async (req, res) => {
-  try {
-    const { tscNumber, nationalId } = req.body;
-
-    // 1. Check required fields
-    if (!tscNumber || !nationalId) {
-      return res.status(400).json({
-        message: "Both TSC Number and National ID are required.",
-      });
-    }
-
-    // 2. Find user matching both TSC Number and National ID
-    const user = await User.findOne({ tscNumber, nationalId });
-
-    if (!user) {
-      return res.status(401).json({
-        message: "Invalid TSC Number or National ID.",
-      });
-    }
-
-    // 3. Return user session payload
-    return res.status(200).json({
-      message: "Login successful!",
-      user: {
-        id: user._id,
-        fullName: user.fullName,
-        tscNumber: user.tscNumber,
-        phone: user.phone,
-        role: user.role,
-      },
-    });
-  } catch (error) {
-    console.error("Login Error:", error);
-    return res.status(500).json({ message: "Server error during login." });
-  }
-});
-
-module.exports = router;
+module.exports = mongoose.model('User', userSchema);
