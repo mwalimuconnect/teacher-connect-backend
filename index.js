@@ -22,29 +22,34 @@ const connectDB = async () => {
     return;
   }
 
-  try {
-    const db = await mongoose.connect(process.env.MONGO_URI, {
-      serverSelectionTimeoutMS: 5000,
-    });
-    isConnected = db.connections[0].readyState === 1;
-    console.log('MongoDB connected successfully');
-  } catch (error) {
-    console.error('MongoDB connection error:', error);
-    throw error;
+  const mongoUri = process.env.MONGO_URI || process.env.MONGODB_URI;
+  if (!mongoUri) {
+    throw new Error('MONGO_URI is not defined in environment variables.');
   }
+
+  const db = await mongoose.connect(mongoUri, {
+    serverSelectionTimeoutMS: 5000,
+  });
+  
+  isConnected = db.connections[0].readyState === 1;
+  console.log('MongoDB connected successfully');
 };
 
-// Ensure database connection is active BEFORE handling routes
+// Database connection middleware
 app.use(async (req, res, next) => {
   try {
     await connectDB();
     next();
   } catch (err) {
-    res.status(500).json({ error: 'Database connection failed: ' + err.message });
+    console.error('Database connection error:', err.message);
+    return res.status(500).json({
+      success: false,
+      message: 'Database connection failed: ' + err.message
+    });
   }
 });
 
-// Routes (Mounted AFTER DB middleware)
+// Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/mpesa', mpesaRoutes);
 app.use('/api/resources', resourceRoutes);
@@ -52,5 +57,12 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/listings', listingRoutes);
 app.use('/api/upload', uploadRoutes);
 
-module.exports = app;
+// Fallback 404 Route for unmatched endpoints
+app.use((req, res) => {
+  return res.status(404).json({
+    success: false,
+    message: `Cannot ${req.method} ${req.url}`
+  });
+});
 
+module.exports = app;
