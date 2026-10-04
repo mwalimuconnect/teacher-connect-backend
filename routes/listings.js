@@ -35,13 +35,13 @@ router.get('/', async (req, res) => {
 
     if (queryType) {
       if (/swap/i.test(queryType)) {
-        filter.type = { $regex: /swap/i };
-      } else if (/vacancy|job/i.test(queryType) && !/seeker/i.test(queryType)) {
-        filter.type = { $regex: /vacancy|job/i };
-      } else if (/seeker|seeking/i.test(queryType)) {
-        filter.type = { $regex: /seeker|seeking/i };
+        filter.type = 'TSC Swap';
+      } else if (/vacancy/i.test(queryType) || /job/i.test(queryType) && !/seeker/i.test(queryType)) {
+        filter.type = 'BOM Vacancy';
+      } else if (/seeker/i.test(queryType) || /seeking/i.test(queryType)) {
+        filter.type = 'Seeking BOM Job';
       } else {
-        filter.type = { $regex: new RegExp(queryType, 'i') };
+        filter.type = new RegExp(queryType, 'i');
       }
     }
 
@@ -62,13 +62,14 @@ router.get('/type/:type', async (req, res) => {
     let typeQuery = {};
 
     if (/swap/i.test(requestedType)) {
-      typeQuery = { type: { $regex: /swap/i } };
-    } else if (/vacancy|job/i.test(requestedType) && !/seeker/i.test(requestedType)) {
-      typeQuery = { type: { $regex: /vacancy|job/i } };
-    } else if (/seeker|seeking/i.test(requestedType)) {
-      typeQuery = { type: { $regex: /seeker|seeking/i } };
+      typeQuery = { type: 'TSC Swap' };
+    } else if (/seeker/i.test(requestedType) || /seeking/i.test(requestedType)) {
+      // Must check seeker FIRST so 'Seeking BOM Job' doesn't hit the vacancy check
+      typeQuery = { type: 'Seeking BOM Job' };
+    } else if (/vacancy/i.test(requestedType) || /job/i.test(requestedType)) {
+      typeQuery = { type: 'BOM Vacancy' };
     } else {
-      typeQuery = { type: { $regex: new RegExp(requestedType, 'i') } };
+      typeQuery = { type: new RegExp(requestedType, 'i') };
     }
 
     const listings = await Listing.find(typeQuery).sort({ createdAt: -1 });
@@ -77,8 +78,7 @@ router.get('/type/:type', async (req, res) => {
     return res.status(200).json(formatted);
   } catch (err) {
     console.error('Error fetching listings by type:', err);
-    return res.status(500).json({ error: err.message || 'Failed to fetch listings by type' });
+    return res.status(500).json({ error: err.message || 'Failed to fetch listings' });
   }
 });
-
 module.exports = router;
