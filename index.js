@@ -1,7 +1,7 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-
+const authRoutes = require('./routes/auth');
 const mpesaRoutes = require('./routes/mpesa');
 const resourceRoutes = require('./routes/resources');
 const adminRoutes = require('./routes/admin');
@@ -20,6 +20,7 @@ app.use('/api/resources', resourceRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/listings', listingRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/auth', authRoutes);
 
 // Serverless MongoDB Connection Cache
 let isConnected = false;
