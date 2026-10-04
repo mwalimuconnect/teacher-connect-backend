@@ -11,17 +11,8 @@ const uploadRoutes = require('./routes/upload');
 
 const app = express();
 
-
 app.use(cors());
 app.use(express.json());
-
-
-app.use('/api/mpesa', mpesaRoutes);
-app.use('/api/resources', resourceRoutes);
-app.use('/api/admin', adminRoutes);
-app.use('/api/listings', listingRoutes);
-app.use('/api/upload', uploadRoutes);
-app.use('/api/auth', authRoutes);
 
 // Serverless MongoDB Connection Cache
 let isConnected = false;
@@ -30,7 +21,7 @@ const connectDB = async () => {
   if (isConnected && mongoose.connection.readyState === 1) {
     return;
   }
-  
+
   try {
     const db = await mongoose.connect(process.env.MONGO_URI, {
       serverSelectionTimeoutMS: 5000,
@@ -43,7 +34,7 @@ const connectDB = async () => {
   }
 };
 
-// Ensure database connection is active before processing routes
+// Ensure database connection is active BEFORE handling routes
 app.use(async (req, res, next) => {
   try {
     await connectDB();
@@ -53,12 +44,13 @@ app.use(async (req, res, next) => {
   }
 });
 
-// Routes
-app.use('/api/listings', listingRoutes);
-app.use('/api/admin', adminRoutes);
-app.use('/api/auth', require('./routes/auth'));
+// Routes (Mounted AFTER DB middleware)
+app.use('/api/auth', authRoutes);
 app.use('/api/mpesa', mpesaRoutes);
 app.use('/api/resources', resourceRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/listings', listingRoutes);
+app.use('/api/upload', uploadRoutes);
 
 module.exports = app;
 
