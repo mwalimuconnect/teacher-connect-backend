@@ -1,68 +1,64 @@
 const express = require('express');
-const mongoose = require('mongoose');
-const cors = require('cors');
+const router = express.Router();
+const multer = require('multer');
+const cloudinary = require('cloudinary').v2;
+const path = require('path');
+const fs = require('fs');
 
-const authRoutes = require('./routes/auth');
-const mpesaRoutes = require('./routes/mpesa');
-const resourceRoutes = require('./routes/resources');
-const adminRoutes = require('./routes/admin');
-const listingRoutes = require('./routes/listings');
-const uploadRoutes = require('./routes/upload');
+// Configure local temp storage for uploaded files before sending to Cloudinary
+const upload = multer({ dest: 'uploads/' });
 
-const app = express();
+// Configure Cloudinary credentials (ensure these environment variables are in Vercel / .env)
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
-app.use(cors());
-app.use(express.json());
-
-// Serverless MongoDB Connection Cache
-let isConnected = false;
-
-const connectDB = async () => {
-  if (isConnected && mongoose.connection.readyState === 1) {
-    return;
-  }
-
-  const mongoUri = process.env.MONGO_URI || process.env.MONGODB_URI;
-  if (!mongoUri) {
-    throw new Error('MONGO_URI is not defined in environment variables.');
-  }
-
-  const db = await mongoose.connect(mongoUri, {
-    serverSelectionTimeoutMS: 5000,
-  });
-  
-  isConnected = db.connections[0].readyState === 1;
-  console.log('MongoDB connected successfully');
-};
-
-// Database connection middleware
-app.use(async (req, res, next) => {
+// POST /api/upload - Upload resource document
+router.post('/', upload.single('file'), async (req, res) => {
   try {
-    await connectDB();
-    next();
-  } catch (err) {
-    console.error('Database connection error:', err.message);
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: 'No file uploaded.' });
+    }
+
+    const filePath = req.file.path;
+    const originalName = req.file.originalname;
+    const ext = path.extname(originalName); // Extract extension e.g., .docx or .pdf
+    const nameWithoutExt = path.parse(originalName).name;
+
+    // Upload to Cloudinary with extension preserved
+    const result = await cloudinary.uploader.upload(filePath, {
+      resource_type: 'raw', // Critical for non-image binary files (.docx, .pdf, .xlsx)
+      public_id: `teacher_resources/${nameWithoutExt}_${Date.now()}${ext}`,
+      use_filename: true,
+      unique_filename: false,
+    });
+
+    // Remove temporary file from local disk
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+
+    // Insert fl_attachment into the URL to guarantee proper file attachment headers
+    let downloadUrl = result.secure_url;
+    if (downloadUrl.includes('/upload/') && !downloadUrl.includes('/fl_attachment/')) {
+      downloadUrl = downloadUrl.replace('/upload/', '/upload/fl_attachment/');
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'File uploaded successfully',
+      url: downloadUrl,
+      public_id: result.public_id,
+    });
+  } catch (error) {
+    console.error('Cloudinary Upload Error:', error);
     return res.status(500).json({
       success: false,
-      message: 'Database connection failed: ' + err.message
+      error: error.message || 'Server error during file upload.',
     });
   }
 });
 
-// Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/mpesa', mpesaRoutes);
-app.use('/api/resources', resourceRoutes);
-app.use('/api/admin', adminRoutes);
-app.use('/api/listings', listingRoutes);
-app.use('/api/upload', uploadRoutes);
-
-// Fallback 404 Route for unmatched endpoints
-app.use((req, res) => {
-  return res.status(404).json({
-    success: false,
-    message: `Cannot ${req.method} ${req.url}`
-  });
-});
-
-module.exports = app;
+module.exports = router;
