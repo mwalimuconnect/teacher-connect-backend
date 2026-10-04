@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const Resource = require('../models/resource'); // Ensure your Resource model exists in models/resource.js
+const Resource = require('../models/Resource'); // Fixed case-sensitivity for Vercel/Linux
 
 // Default fallback items if the database has no records yet
 const sampleResources = [
@@ -10,7 +10,7 @@ const sampleResources = [
     category: 'Schemes of Work',
     subject: 'English',
     fileUrl: 'https://example.com/schemes.pdf',
-    price: 0
+    price: 0,
   },
   {
     id: '2',
@@ -18,8 +18,8 @@ const sampleResources = [
     category: 'Lesson Plans',
     subject: 'Literature',
     fileUrl: 'https://example.com/lesson_plan.pdf',
-    price: 0
-  }
+    price: 0,
+  },
 ];
 
 // Helper to format resource IDs properly for Flutter
@@ -27,7 +27,7 @@ const formatResource = (item) => {
   const doc = item._doc || item;
   return {
     ...doc,
-    id: doc._id ? doc._id.toString() : doc.id
+    id: doc._id ? doc._id.toString() : doc.id,
   };
 };
 
@@ -95,14 +95,14 @@ router.post('/', async (req, res) => {
       subject: subject || 'General',
       fileUrl,
       price: price || 0,
-      description: description || ''
+      description: description || '',
     });
 
     await newResource.save();
     return res.status(201).json({
       success: true,
       message: 'Resource uploaded successfully!',
-      resource: formatResource(newResource)
+      resource: formatResource(newResource),
     });
   } catch (error) {
     console.error('Error creating resource:', error);
