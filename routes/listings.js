@@ -5,9 +5,23 @@ const Listing = require('../models/Listing'); // Fixed case-sensitivity for Verc
 // Helper to format listing data consistently
 const formatListing = (item) => {
   const doc = item._doc || item;
+
   const phoneVal = item.phone || item.contactPhone || item.phoneNumber || '';
   const schoolVal = item.currentSchool || item.school || item.schoolName || '';
   const nameVal = item.fullName || item.teacherName || 'N/A';
+
+  // Extract Subject Combination properly from Listing schema
+  const subjectsVal = item.subjectCombination || item.subjects || item.subject || 'N/A';
+
+  // Format Target Location string nicely
+  let targetVal = '';
+  if (item.targetCounty && item.targetSubCounty) {
+    targetVal = `${item.targetCounty} (${item.targetSubCounty})`;
+  } else if (item.targetCounty) {
+    targetVal = item.targetCounty;
+  } else if (item.targetSubCounty) {
+    targetVal = item.targetSubCounty;
+  }
 
   return {
     ...doc,
@@ -18,6 +32,9 @@ const formatListing = (item) => {
     contactNumber: phoneVal,
     currentSchool: schoolVal,
     school: schoolVal,
+    subjectCombination: subjectsVal,
+    subjects: subjectsVal,
+    targetLocation: targetVal,
     user: {
       name: nameVal,
       phone: phoneVal,
@@ -36,7 +53,7 @@ router.get('/', async (req, res) => {
     if (queryType) {
       if (/swap/i.test(queryType)) {
         filter.type = 'TSC Swap';
-      } else if (/vacancy/i.test(queryType) || /job/i.test(queryType) && !/seeker/i.test(queryType)) {
+      } else if ((/vacancy/i.test(queryType) || /job/i.test(queryType)) && !/seeker/i.test(queryType)) {
         filter.type = 'BOM Vacancy';
       } else if (/seeker/i.test(queryType) || /seeking/i.test(queryType)) {
         filter.type = 'Seeking BOM Job';
@@ -81,4 +98,5 @@ router.get('/type/:type', async (req, res) => {
     return res.status(500).json({ error: err.message || 'Failed to fetch listings' });
   }
 });
+
 module.exports = router;
