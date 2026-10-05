@@ -158,9 +158,12 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // Compare hashed password safely
-    const isMatch = await bcrypt.compare(password, user.password).catch(() => false);
-    // Fallback check for legacy unhashed plain text passwords
+    // Safely verify password (supports both hashed bcrypt and legacy plain text)
+    let isMatch = false;
+    if (user.password && typeof user.password === 'string' && user.password.startsWith('$2')) {
+      isMatch = await bcrypt.compare(password, user.password).catch(() => false);
+    }
+
     const isPlainTextMatch = user.password === password;
 
     if (!isMatch && !isPlainTextMatch) {
@@ -247,6 +250,7 @@ router.post('/admin/verify', async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'Server error during passcode verification.',
+      error: error.message,
     });
   }
 });
