@@ -10,13 +10,31 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// 2. Connect to MongoDB
-if (process.env.MONGODB_URI) {
-  mongoose
-    .connect(process.env.MONGODB_URI)
-    .then(() => console.log('MongoDB connected successfully'))
-    .catch((err) => console.error('MongoDB connection error:', err));
-}
+// 2. Connect to MongoDB (Handles MONGO_URI and MONGODB_URI)
+let isConnected = false;
+
+const connectDB = async () => {
+  if (isConnected) return;
+
+  const mongoUri = process.env.MONGO_URI || process.env.MONGODB_URI;
+
+  try {
+    if (!mongoUri) {
+      throw new Error('Database URI is missing from environment variables.');
+    }
+    const db = await mongoose.connect(mongoUri);
+    isConnected = db.connections[0].readyState === 1;
+    console.log('MongoDB connected successfully');
+  } catch (err) {
+    console.error('MongoDB connection error:', err.message);
+  }
+};
+
+// Middleware to ensure DB connection before executing routes
+app.use(async (req, res, next) => {
+  await connectDB();
+  next();
+});
 
 // 3. Import Routes
 const authRoutes = require('./routes/auth');
