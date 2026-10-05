@@ -112,28 +112,7 @@ router.post('/register', async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: 'Registration successful!',
-      user: {
-        id: user._id,
-        fullName: user.fullName,
-        phone: user.phone,
-        tscNumber: user.tscNumber,
-        role: user.role,
-        status: user.status,
-      },
-      token,
-    });
-  } catch (error) {
-    console.error('Registration Error:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Server error during registration.',
-      error: error.message,
-    });
-  }
-});
-
-// ============================================================================
+      me// ============================================================================
 // 2. LOGIN ENDPOINT (/api/auth/login)
 // ============================================================================
 router.post('/login', async (req, res) => {
@@ -141,7 +120,7 @@ router.post('/login', async (req, res) => {
     const { phone, phoneNumber, password } = req.body || {};
 
     const rawPhone = phoneNumber || phone || '';
-    const cleanPhone = rawPhone.replace(/\s+/g, '');
+    const cleanPhone = String(rawPhone).replace(/\s+/g, '');
 
     if (!cleanPhone || !password) {
       return res.status(400).json({
@@ -158,13 +137,18 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // Safely verify password (supports both hashed bcrypt and legacy plain text)
+    // Ensure password from DB exists and is a valid string
+    const dbPassword = user.password || '';
+    const inputPassword = String(password);
+
+    // Safely verify password using bcrypt (only if formatted as a bcrypt hash)
     let isMatch = false;
-    if (user.password && typeof user.password === 'string' && user.password.startsWith('$2')) {
-      isMatch = await bcrypt.compare(password, user.password).catch(() => false);
+    if (typeof dbPassword === 'string' && dbPassword.startsWith('$2')) {
+      isMatch = await bcrypt.compare(inputPassword, dbPassword).catch(() => false);
     }
 
-    const isPlainTextMatch = user.password === password;
+    // Fallback check for legacy unhashed plain-text passwords
+    const isPlainTextMatch = dbPassword === inputPassword;
 
     if (!isMatch && !isPlainTextMatch) {
       return res.status(401).json({
