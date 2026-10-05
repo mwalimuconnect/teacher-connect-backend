@@ -4,9 +4,9 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
-// ============================================================================
+// =========================================================================
 // 1. REGISTER ENDPOINT (/api/auth/register)
-// ============================================================================
+// =========================================================================
 router.post('/register', async (req, res) => {
   try {
     const {
@@ -135,9 +135,9 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// ============================================================================
+// =========================================================================
 // 2. LOGIN ENDPOINT (/api/auth/login)
-// ============================================================================
+// =========================================================================
 router.post('/login', async (req, res) => {
   try {
     const { phone, phoneNumber, password } = req.body || {};
@@ -167,7 +167,11 @@ router.post('/login', async (req, res) => {
     // Safely check bcrypt hash without throwing a TypeError
     let isMatch = false;
     if (dbPassword.startsWith('$2')) {
-      isMatch = await bcrypt.compare(inputPassword, dbPassword).catch(() => false);
+      try {
+        isMatch = await bcrypt.compare(inputPassword, dbPassword);
+      } catch (err) {
+        isMatch = false;
+      }
     }
 
     // Fallback check for legacy plain text passwords
@@ -225,9 +229,9 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// ============================================================================
+// =========================================================================
 // 3. ADMIN VERIFICATION ENDPOINT (/api/auth/admin/verify)
-// ============================================================================
+// =========================================================================
 router.post('/admin/verify', async (req, res) => {
   try {
     const { passcode, adminPasscode } = req.body || {};
