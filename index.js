@@ -1,65 +1,51 @@
 const express = require('express');
-const router = express.Router();
-const multer = require('multer');
-const cloudinary = require('cloudinary').v2;
-const path = require('path');
-const fs = require('fs');
-const os = require('os');
+const mongoose = require('mongoose');
+const cors = require('cors');
+require('dotenv').config();
 
-// Configure temporary storage in Vercel's writable /tmp directory
-const upload = multer({ dest: os.tmpdir() });
+const app = express();
 
-// Configure Cloudinary credentials (ensure these environment variables are in Vercel / .env)
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
+// 1. Essential Middlewares
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// 2. Connect to MongoDB
+if (process.env.MONGODB_URI) {
+  mongoose
+    .connect(process.env.MONGODB_URI)
+    .then(() => console.log('MongoDB connected successfully'))
+    .catch((err) => console.error('MongoDB connection error:', err));
+}
+
+// 3. Import Routes
+const authRoutes = require('./routes/auth');
+const adminRoutes = require('./routes/admin');
+const listingsRoutes = require('./routes/listings');
+const mpesaRoutes = require('./routes/mpesa');
+const resourcesRoutes = require('./routes/resources');
+const uploadRoutes = require('./routes/upload');
+
+// 4. Mount API Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/listings', listingsRoutes);
+app.use('/api/mpesa', mpesaRoutes);
+app.use('/api/resources', resourcesRoutes);
+app.use('/api/upload', uploadRoutes);
+
+// Health check endpoint
+app.get('/', (req, res) => {
+  res.send('TeacherConnect API Server Running');
 });
 
-// POST /api/upload - Upload resource document
-router.post('/', upload.single('file'), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ success: false, error: 'No file uploaded.' });
-    }
+// 5. Start Server for Local Development
+const PORT = process.env.PORT || 5000;
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}
 
-    const filePath = req.file.path;
-    const originalName = req.file.originalname;
-    const ext = path.extname(originalName); // Extract extension e.g., .docx or .pdf
-    const nameWithoutExt = path.parse(originalName).name;
-
-    // Upload to Cloudinary with extension preserved
-    const result = await cloudinary.uploader.upload(filePath, {
-      resource_type: 'raw', // Critical for non-image binary files (.docx, .pdf, .xlsx)
-      public_id: `teacher_resources/${nameWithoutExt}_${Date.now()}${ext}`,
-      use_filename: true,
-      unique_filename: false,
-    });
-
-    // Remove temporary file from /tmp (Fixed casing: filePath)
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
-    }
-
-    // Insert fl_attachment into the URL to guarantee proper file attachment headers
-    let downloadUrl = result.secure_url;
-    if (downloadUrl.includes('/upload/') && !downloadUrl.includes('/fl_attachment/')) {
-      downloadUrl = downloadUrl.replace('/upload/', '/upload/fl_attachment/');
-    }
-
-    return res.status(200).json({
-      success: true,
-      message: 'File uploaded successfully',
-      url: downloadUrl,
-      public_id: result.public_id,
-    });
-  } catch (error) {
-    console.error('Cloudinary Upload Error:', error);
-    return res.status(500).json({
-      success: false,
-      error: error.message || 'Server error during file upload.',
-    });
-  }
-});
-
-module.exports = router;
+// Export for Vercel Serverless Execution
+module.exports = app;
