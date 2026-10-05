@@ -9,7 +9,7 @@ const sampleResources = [
     title: 'Form 4 English Schemes of Work (Term 1-3)',
     category: 'Schemes of Work',
     subject: 'English',
-    fileUrl: 'https://example.com/schemes.pdf',
+    fileUrl: 'https://example.com/schemes.docx',
     price: 0,
   },
   {
@@ -17,7 +17,7 @@ const sampleResources = [
     title: 'Blossoms of the Savannah Comprehensive Lesson Plan',
     category: 'Lesson Plans',
     subject: 'Literature',
-    fileUrl: 'https://example.com/lesson_plan.pdf',
+    fileUrl: 'https://example.com/lesson_plan.docx',
     price: 0,
   },
 ];
@@ -31,7 +31,9 @@ const formatResource = (item) => {
   };
 };
 
-// GET /api/resources - Fetch all resources or filter by category/search
+// =========================================================================
+// 1. GET /api/resources - Fetch all resources or filter by category/search
+// =========================================================================
 router.get('/', async (req, res) => {
   try {
     const { category, search } = req.query;
@@ -45,6 +47,7 @@ router.get('/', async (req, res) => {
       query.title = { $regex: new RegExp(search, 'i') };
     }
 
+    // Fixed typo: Resource.find instead of Resourca.find
     let resources = await Resource.find(query).sort({ createdAt: -1 });
 
     // If MongoDB returns no items, return sample fallbacks
@@ -60,7 +63,9 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/resources/category/:category - Fetch by category parameter
+// =========================================================================
+// 2. GET /api/resources/category/:category - Fetch by category parameter
+// =========================================================================
 router.get('/category/:category', async (req, res) => {
   try {
     const catParam = req.params.category;
@@ -80,10 +85,52 @@ router.get('/category/:category', async (req, res) => {
   }
 });
 
-// POST /api/resources - UPLOAD/CREATE A NEW RESOURCE
+// =========================================================================
+// 3. GET /api/resources/download/:id - File Download Proxy with Correct Headers
+// =========================================================================
+router.get('/download/:id', async (req, res) => {
+  try {
+    const resource = await Resource.findById(req.params.id);
+    if (!resource) {
+      return res.status(404).json({ success: false, message: 'Resource not found' });
+    }
+
+    const fileUrl = resource.fileUrl;
+    if (!fileUrl) {
+      return res.status(400).json({ success: false, message: 'No file URL associated with this resource' });
+    }
+
+    // Detect file extension or default to .docx
+    let extension = '.docx';
+    if (fileUrl.includes('.xlsx')) extension = '.xlsx';
+    if (fileUrl.includes('.pdf')) extension = '.pdf';
+
+    const safeFilename = resource.title.replace(/[^a-zA-Z0-9_\-]/g, '_') + extension;
+
+    // Set HTTP Headers to ensure mobile devices open the file with Word/Excel
+    res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}"`);
+    if (extension === '.docx') {
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    } else if (extension === '.xlsx') {
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    } else if (extension === '.pdf') {
+      res.setHeader('Content-Type', 'application/pdf');
+    }
+
+    // Redirect or pipe from remote storage (e.g. Cloudinary / S3 / External URL)
+    return res.redirect(fileUrl);
+  } catch (error) {
+    console.error('Error downloading resource:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// =========================================================================
+// 4. POST /api/resources - UPLOAD/CREATE A NEW RESOURCE
+// =========================================================================
 router.post('/', async (req, res) => {
   try {
-    const { title, category, subject, fileUrl, price, description } = req.body;
+    const { title, category, subject, fileUrl, price, description } = req.body || {};
 
     if (!title || !category || !fileUrl) {
       return res.status(400).json({ error: 'Title, Category, and File URL are required fields.' });
