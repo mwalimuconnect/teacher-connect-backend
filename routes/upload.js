@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const cloudinary = require('cloudinary').v2;
+const path = require('path');
 
 // Configure Cloudinary from Vercel Environment Variables
 cloudinary.config({
@@ -12,7 +13,7 @@ cloudinary.config({
 
 // Configure Multer memory storage (ideal for Vercel serverless)
 const storage = multer.memoryStorage();
-const upload = multer({ 
+const upload = multer({
   storage,
   limits: { fileSize: 10 * 1024 * 1024 } // 10MB file limit
 });
@@ -24,20 +25,37 @@ router.post('/', upload.single('file'), async (req, res) => {
       return res.status(400).json({ error: 'No file was provided.' });
     }
 
+    const originalName = req.file.originalname;
+    const ext = path.extname(originalName);
+    const nameWithoutExt = path.parse(originalName).name;
+
     // Streams buffer directly to Cloudinary
     const uploadStream = cloudinary.uploader.upload_stream(
       {
         resource_type: 'raw', // For PDFs, DOCX, and documents
         folder: 'teacher_resources',
+        public_id: `${nameWithoutExt}_${Date.now()}${ext}`, // Keeps file extension intact
+        use_filename: true,
       },
       (error, result) => {
-        if (error) {
+        // Guard against Cloudinary failure
+        if (error || !result) {
           console.error('Cloudinary Error:', error);
-          return res.status(500).json({ error: 'Failed to store file on Cloudinary.' });
+          return res.status(500).json({ 
+            error: error?.message || 'Failed to store file on Cloudinary.' 
+          });
         }
+
+        // Force browser/device download header for document files
+        let downloadUrl = result.secure_url;
+        if (downloadUrl.includes('/upload/') && !downloadUrl.includes('/fl_attachment/')) {
+          downloadUrl = downloadUrl.replace('/upload/', '/upload/fl_attachment/');
+        }
+
         return res.status(200).json({
           success: true,
-          fileUrl: result.secure_url
+          fileUrl: downloadUrl,
+          public_id: result.public_id,
         });
       }
     );
@@ -45,7 +63,9 @@ router.post('/', upload.single('file'), async (req, res) => {
     uploadStream.end(req.file.buffer);
   } catch (err) {
     console.error('Upload route error:', err);
-    res.status(500).json({ error: err.message || 'Server error uploading file.' });
+    return res.status(500).json({ 
+      error: err.message || 'Server error uploading file.' 
+    });
   }
 });
 
