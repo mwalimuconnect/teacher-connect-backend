@@ -4,9 +4,10 @@ const multer = require('multer');
 const cloudinary = require('cloudinary').v2;
 const path = require('path');
 const fs = require('fs');
+const os = require('os'); // Added os module
 
-// Configure local temp storage for uploaded files before sending to Cloudinary
-const upload = multer({ dest: 'uploads/' });
+// Configure temporary storage in Vercel's writable /tmp directory
+const upload = multer({ dest: os.tmpdir() });
 
 // Configure Cloudinary credentials (ensure these environment variables are in Vercel / .env)
 cloudinary.config({
@@ -35,7 +36,7 @@ router.post('/', upload.single('file'), async (req, res) => {
       unique_filename: false,
     });
 
-    // Remove temporary file from local disk
+    // Remove temporary file from /tmp
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
     }
