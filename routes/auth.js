@@ -1,11 +1,12 @@
 const express = require('express');
 const router = express.Router();
-
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
-// =========================================================================
+// ============================================================================
 // 1. REGISTER ENDPOINT (/api/auth/register)
-// =========================================================================
+// ============================================================================
 router.post('/register', async (req, res) => {
   try {
     const {
@@ -19,13 +20,13 @@ router.post('/register', async (req, res) => {
       role,
       password,
       adminPasscode,
-    } = req.body;
+    } = req.body || {};
 
     const rawPhone = phoneNumber || phone || '';
     const rawId = nationalId || idNumber || '';
     const rawTsc = tscNumber || '';
 
-    const cleanPhone = rawPhone.replace(/\s+/g, '').trim();
+    const cleanPhone = rawPhone.replace(/\s+/g, '');
     const cleanTsc = rawTsc.trim();
     const cleanId = rawId.trim();
 
@@ -36,21 +37,19 @@ router.post('/register', async (req, res) => {
       });
     }
 
-    const invalidPhones = ['0712345678', '0700000000', '0123456789', '0711111111'];
+    const invalidPhones = ['0712345678', '0700000000'];
     const kenyanPhoneRegex = /^(07|01|\+254)[0-9]{8}$/;
 
-    if (invalidPhones.includes(cleanPhone) || (!kenyanPhoneRegex.test(cleanPhone) && cleanPhone.length === 10)) {
+    if (invalidPhones.includes(cleanPhone) || !kenyanPhoneRegex.test(cleanPhone)) {
       return res.status(400).json({
         success: false,
         message: 'Please enter a valid Kenyan phone number.',
       });
     }
 
-    const isAdminRole = (role || '').toLowerCase().includes('admin');
+    const isAdminRole = (role || '').toLowerCase() === 'admin';
     if (isAdminRole) {
       const expectedPasscode = process.env.ADMIN_PASSCODE;
-      
-      // Prevent admin registration if environment variable is missing or wrong
       if (!expectedPasscode || adminPasscode !== expectedPasscode) {
         return res.status(401).json({
           success: false,
@@ -59,19 +58,21 @@ router.post('/register', async (req, res) => {
       }
     }
 
-    // Correct schema key: nationalId
     const orConditions = [{ phone: cleanPhone }];
     if (cleanId) orConditions.push({ nationalId: cleanId });
     if (cleanTsc) orConditions.push({ tscNumber: cleanTsc });
 
     const existingUser = await User.findOne({ $or: orConditions });
-
     if (existingUser) {
       return res.status(400).json({
         success: false,
-        message: 'An account with these credentials already exists. Please log in.',
+        message: 'An account with these credentials already exists.',
       });
     }
+
+    // Hash the password securely
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
 
     const user = new User({
       fullName: fullName.trim(),
@@ -80,14 +81,21 @@ router.post('/register', async (req, res) => {
       nationalId: cleanId,
       currentSchool: currentSchool ? currentSchool.trim() : '',
       role: role || 'Member Teacher',
-      password,
+      password: hashedPassword,
       status: isAdminRole ? 'approved' : 'pending',
       isApproved: isAdminRole,
     });
 
     await user.save();
 
-    if (user.status === 'pending' || user.isApproved === false) {
+    // Generate valid JWT token
+    const token = jwt.sign(
+      { userId: user._id, role: user.role, phone: user.phone },
+      process.env.JWT_SECRET || 'fallback_secret_key',
+      { expiresIn: '30d' }
+    );
+
+    if (user.status === 'pending' || !user.isApproved) {
       return res.status(201).json({
         success: true,
         message: 'Registration successful. Account pending admin approval.',
@@ -98,6 +106,7 @@ router.post('/register', async (req, res) => {
           role: user.role,
           status: user.status,
         },
+        token,
       });
     }
 
@@ -112,26 +121,27 @@ router.post('/register', async (req, res) => {
         role: user.role,
         status: user.status,
       },
-      token: 'jwt-token-placeholder',
+      token,
     });
   } catch (error) {
     console.error('Registration Error:', error);
     return res.status(500).json({
       success: false,
-      message: 'Server error during registration processing.',
+      message: 'Server error during registration.',
       error: error.message,
     });
   }
 });
 
-// =========================================================================
+// ============================================================================
 // 2. LOGIN ENDPOINT (/api/auth/login)
-// =========================================================================
+// ============================================================================
 router.post('/login', async (req, res) => {
   try {
-    const { phone, phoneNumber, password } = req.body;
+    const { phone, phoneNumber, password } = req.body || {};
+
     const rawPhone = phoneNumber || phone || '';
-    const cleanPhone = rawPhone.replace(/\s+/g, '').trim();
+    const cleanPhone = rawPhone.replace(/\s+/g, '');
 
     if (!cleanPhone || !password) {
       return res.status(400).json({
@@ -141,7 +151,6 @@ router.post('/login', async (req, res) => {
     }
 
     const user = await User.findOne({ phone: cleanPhone });
-
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -149,17 +158,22 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    if (user.password !== password) {
+    // Compare hashed password safely
+    const isMatch = await bcrypt.compare(password, user.password).catch(() => false);
+    // Fallback check for legacy unhashed plain text passwords
+    const isPlainTextMatch = user.password === password;
+
+    if (!isMatch && !isPlainTextMatch) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid credentials. Please check your phone or password.',
+        message: 'Invalid credentials. Please check your phone number and password.',
       });
     }
 
-    if (user.status === 'pending' || user.isApproved === false) {
+    if (user.status === 'pending' || !user.isApproved) {
       return res.status(403).json({
         success: false,
-        message: 'Your account is pending admin approval. Please wait for an admin to activate your profile.',
+        message: 'Your account is pending admin approval.',
         pendingApproval: true,
       });
     }
@@ -167,9 +181,16 @@ router.post('/login', async (req, res) => {
     if (user.status === 'rejected') {
       return res.status(403).json({
         success: false,
-        message: 'Your account registration was rejected by the administrator.',
+        message: 'Your account registration was rejected.',
       });
     }
+
+    // Generate JWT Token
+    const token = jwt.sign(
+      { userId: user._id, role: user.role, phone: user.phone },
+      process.env.JWT_SECRET || 'fallback_secret_key',
+      { expiresIn: '30d' }
+    );
 
     return res.status(200).json({
       success: true,
@@ -182,7 +203,7 @@ router.post('/login', async (req, res) => {
         role: user.role,
         status: user.status,
       },
-      token: 'jwt-token-placeholder',
+      token,
     });
   } catch (error) {
     console.error('Login Error:', error);
@@ -194,14 +215,15 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// =========================================================================
+// ============================================================================
 // 3. ADMIN VERIFICATION ENDPOINT (/api/auth/admin/verify)
-// =========================================================================
+// ============================================================================
 router.post('/admin/verify', async (req, res) => {
   try {
-    const passcode = req.body.passcode || req.body.adminPasscode;
+    const { passcode, adminPasscode } = req.body || {};
+    const inputPasscode = passcode || adminPasscode;
 
-    if (!passcode) {
+    if (!inputPasscode) {
       return res.status(400).json({
         success: false,
         message: 'Passcode is required.',
@@ -209,8 +231,7 @@ router.post('/admin/verify', async (req, res) => {
     }
 
     const expectedPasscode = process.env.ADMIN_PASSCODE;
-
-    if (expectedPasscode && passcode === expectedPasscode) {
+    if (expectedPasscode && inputPasscode === expectedPasscode) {
       return res.status(200).json({
         success: true,
         message: 'Admin passcode verified successfully.',
