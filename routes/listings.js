@@ -44,7 +44,9 @@ const formatListing = (item) => {
   };
 };
 
-// GET /api/listings - Fetch all listings or filter by query string ?type=
+// =========================================================================
+// 1. GET ALL LISTINGS OR FILTER BY QUERY STRING (?type=...)
+// =========================================================================
 router.get('/', async (req, res) => {
   try {
     const filter = {};
@@ -72,7 +74,9 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/listings/type/:type - Tab Endpoint matching App requests
+// =========================================================================
+// 2. GET LISTINGS BY TAB TYPE (/api/listings/type/:type)
+// =========================================================================
 router.get('/type/:type', async (req, res) => {
   try {
     const requestedType = req.params.type;
@@ -81,7 +85,6 @@ router.get('/type/:type', async (req, res) => {
     if (/swap/i.test(requestedType)) {
       typeQuery = { type: 'TSC Swap' };
     } else if (/seeker/i.test(requestedType) || /seeking/i.test(requestedType)) {
-      // Must check seeker FIRST so 'Seeking BOM Job' doesn't hit the vacancy check
       typeQuery = { type: 'Seeking BOM Job' };
     } else if (/vacancy/i.test(requestedType) || /job/i.test(requestedType)) {
       typeQuery = { type: 'BOM Vacancy' };
@@ -96,6 +99,111 @@ router.get('/type/:type', async (req, res) => {
   } catch (err) {
     console.error('Error fetching listings by type:', err);
     return res.status(500).json({ error: err.message || 'Failed to fetch listings' });
+  }
+});
+
+// =========================================================================
+// 3. GET SINGLE LISTING BY ID (/api/listings/:id)
+// =========================================================================
+router.get('/:id', async (req, res) => {
+  try {
+    const listing = await Listing.findById(req.params.id);
+    if (!listing) {
+      return res.status(404).json({ success: false, message: 'Listing not found' });
+    }
+    return res.status(200).json(formatListing(listing));
+  } catch (err) {
+    console.error('Error fetching listing:', err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// =========================================================================
+// 4. CREATE NEW LISTING (/api/listings)
+// =========================================================================
+router.post('/', async (req, res) => {
+  try {
+    const newListing = new Listing(req.body);
+    const savedListing = await newListing.save();
+    return res.status(201).json({
+      success: true,
+      message: 'Listing created successfully',
+      data: formatListing(savedListing),
+    });
+  } catch (err) {
+    console.error('Error creating listing:', err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// =========================================================================
+// 5. UPDATE LISTING (/api/listings/:id) - FIXES THE 404 ERROR
+// =========================================================================
+router.put('/:id', async (req, res) => {
+  try {
+    const updatedListing = await Listing.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedListing) {
+      return res.status(404).json({ success: false, message: 'Listing not found' });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Listing updated successfully',
+      data: formatListing(updatedListing),
+    });
+  } catch (err) {
+    console.error('Error updating listing:', err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Support PATCH requests as well for updates
+router.patch('/:id', async (req, res) => {
+  try {
+    const updatedListing = await Listing.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedListing) {
+      return res.status(404).json({ success: false, message: 'Listing not found' });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Listing updated successfully',
+      data: formatListing(updatedListing),
+    });
+  } catch (err) {
+    console.error('Error updating listing:', err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// =========================================================================
+// 6. DELETE LISTING (/api/listings/:id)
+// =========================================================================
+router.delete('/:id', async (req, res) => {
+  try {
+    const deletedListing = await Listing.findByIdAndDelete(req.params.id);
+
+    if (!deletedListing) {
+      return res.status(404).json({ success: false, message: 'Listing not found' });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Listing deleted successfully',
+    });
+  } catch (err) {
+    console.error('Error deleting listing:', err);
+    return res.status(500).json({ success: false, message: err.message });
   }
 });
 
