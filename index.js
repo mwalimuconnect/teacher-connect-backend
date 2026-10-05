@@ -4,7 +4,7 @@ const multer = require('multer');
 const cloudinary = require('cloudinary').v2;
 const path = require('path');
 const fs = require('fs');
-const os = require('os'); // Added os module
+const os = require('os');
 
 // Configure temporary storage in Vercel's writable /tmp directory
 const upload = multer({ dest: os.tmpdir() });
@@ -36,7 +36,7 @@ router.post('/', upload.single('file'), async (req, res) => {
       unique_filename: false,
     });
 
-    // Remove temporary file from /tmp
+    // Remove temporary file from /tmp (Fixed casing: filePath)
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
     }
