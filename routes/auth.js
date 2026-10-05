@@ -26,11 +26,13 @@ router.post('/register', async (req, res) => {
     const rawId = nationalId || idNumber || '';
     const rawTsc = tscNumber || '';
 
-    const cleanPhone = rawPhone.replace(/\s+/g, '');
-    const cleanTsc = rawTsc.trim();
-    const cleanId = rawId.trim();
+    const cleanPhone = String(rawPhone).replace(/\s+/g, '');
+    const cleanTsc = String(rawTsc).trim();
+    const cleanId = String(rawId).trim();
+    const cleanFullName = String(fullName || '').trim();
+    const cleanPassword = String(password || '');
 
-    if (!fullName || !cleanPhone || !password) {
+    if (!cleanFullName || !cleanPhone || !cleanPassword) {
       return res.status(400).json({
         success: false,
         message: 'Full Name, Phone Number, and Password are required.',
@@ -47,10 +49,10 @@ router.post('/register', async (req, res) => {
       });
     }
 
-    const isAdminRole = (role || '').toLowerCase() === 'admin';
+    const isAdminRole = String(role || '').toLowerCase() === 'admin';
     if (isAdminRole) {
       const expectedPasscode = process.env.ADMIN_PASSCODE;
-      if (!expectedPasscode || adminPasscode !== expectedPasscode) {
+      if (!expectedPasscode || String(adminPasscode) !== String(expectedPasscode)) {
         return res.status(401).json({
           success: false,
           message: 'Invalid Admin Security Passcode.',
@@ -72,14 +74,14 @@ router.post('/register', async (req, res) => {
 
     // Hash the password securely
     const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
+    const hashedPassword = await bcrypt.hash(cleanPassword, salt);
 
     const user = new User({
-      fullName: fullName.trim(),
+      fullName: cleanFullName,
       tscNumber: cleanTsc,
       phone: cleanPhone,
       nationalId: cleanId,
-      currentSchool: currentSchool ? currentSchool.trim() : '',
+      currentSchool: currentSchool ? String(currentSchool).trim() : '',
       role: role || 'Member Teacher',
       password: hashedPassword,
       status: isAdminRole ? 'approved' : 'pending',
@@ -112,7 +114,28 @@ router.post('/register', async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      me// ============================================================================
+      message: 'Registration successful!',
+      user: {
+        id: user._id,
+        fullName: user.fullName,
+        phone: user.phone,
+        tscNumber: user.tscNumber,
+        role: user.role,
+        status: user.status,
+      },
+      token,
+    });
+  } catch (error) {
+    console.error('Registration Error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error during registration.',
+      error: error.message,
+    });
+  }
+});
+
+// ============================================================================
 // 2. LOGIN ENDPOINT (/api/auth/login)
 // ============================================================================
 router.post('/login', async (req, res) => {
@@ -121,8 +144,9 @@ router.post('/login', async (req, res) => {
 
     const rawPhone = phoneNumber || phone || '';
     const cleanPhone = String(rawPhone).replace(/\s+/g, '');
+    const inputPassword = String(password || '');
 
-    if (!cleanPhone || !password) {
+    if (!cleanPhone || !inputPassword) {
       return res.status(400).json({
         success: false,
         message: 'Phone number and password are required.',
@@ -137,17 +161,16 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // Ensure password from DB exists and is a valid string
-    const dbPassword = user.password || '';
-    const inputPassword = String(password);
+    // Safely pull password string from database document
+    const dbPassword = user.password ? String(user.password) : '';
 
-    // Safely verify password using bcrypt (only if formatted as a bcrypt hash)
+    // Safely check bcrypt hash without throwing a TypeError
     let isMatch = false;
-    if (typeof dbPassword === 'string' && dbPassword.startsWith('$2')) {
+    if (dbPassword.startsWith('$2')) {
       isMatch = await bcrypt.compare(inputPassword, dbPassword).catch(() => false);
     }
 
-    // Fallback check for legacy unhashed plain-text passwords
+    // Fallback check for legacy plain text passwords
     const isPlainTextMatch = dbPassword === inputPassword;
 
     if (!isMatch && !isPlainTextMatch) {
@@ -208,7 +231,7 @@ router.post('/login', async (req, res) => {
 router.post('/admin/verify', async (req, res) => {
   try {
     const { passcode, adminPasscode } = req.body || {};
-    const inputPasscode = passcode || adminPasscode;
+    const inputPasscode = String(passcode || adminPasscode || '');
 
     if (!inputPasscode) {
       return res.status(400).json({
@@ -218,7 +241,7 @@ router.post('/admin/verify', async (req, res) => {
     }
 
     const expectedPasscode = process.env.ADMIN_PASSCODE;
-    if (expectedPasscode && inputPasscode === expectedPasscode) {
+    if (expectedPasscode && inputPasscode === String(expectedPasscode)) {
       return res.status(200).json({
         success: true,
         message: 'Admin passcode verified successfully.',
