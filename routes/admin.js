@@ -6,9 +6,9 @@ const User = require('../models/User');
 // Formatter to standardize listing object structures for Flutter client
 const formatListing = (item) => {
   const doc = item._doc || item;
-  const phoneVal = item.phone || item.contactPhone || item.phoneNumber;
-  const schoolVal = item.currentSchool || item.school || item.schoolName;
-  const nameVal = item.fullName || item.teacherName || 'N/A';
+  const phoneVal = item.phone || item.contactPhone || item.phoneNumber || '';
+  const schoolVal = item.currentSchool || item.school || item.schoolName || '';
+  const nameVal = item.fullName || item.teacherName || item.userName || 'N/A';
 
   return {
     ...doc,
@@ -32,8 +32,9 @@ const formatListing = (item) => {
 router.get('/stats', async (req, res) => {
   try {
     const totalListings = await Listing.countDocuments();
+    const totalMembers = await User.countDocuments();
 
-    // Count user accounts requiring admin approval
+    // 1. Count user accounts requiring admin approval
     const pendingUsers = await User.countDocuments({
       $or: [
         { status: { $regex: /^pending$/i } },
@@ -41,8 +42,15 @@ router.get('/stats', async (req, res) => {
       ],
     });
 
-    // Count total registered users
-    const totalMembers = await User.countDocuments();
+    // 2. Count listings requiring admin approval
+    const pendingListings = await Listing.countDocuments({
+      $or: [
+        { status: { $regex: /^pending$/i } },
+        { isApproved: false },
+      ],
+    });
+
+    const totalPending = pendingUsers + pendingListings;
 
     res.status(200).json({
       success: true,
@@ -50,8 +58,8 @@ router.get('/stats', async (req, res) => {
       totalCount: totalListings,
       total: totalListings,
       count: totalListings,
-      pendingApprovals: pendingUsers,
-      pendingCount: pendingUsers,
+      pendingApprovals: totalPending,
+      pendingCount: totalPending,
       paymentsReceived: 0,
       totalMembers: totalMembers,
     });
@@ -89,18 +97,24 @@ router.get('/pending-approvals', async (req, res) => {
   try {
     const [pendingSwaps, pendingBomSeekers, pendingBomVacancies, pendingMembers] = await Promise.all([
       Listing.find({
-        category: { $regex: /^TSC Swap$/i },
-        $or: [{ status: { $regex: /^pending$/i } }, { isApproved: false }],
+        $and: [
+          { $or: [{ category: { $regex: /swap/i } }, { type: { $regex: /swap/i } }] },
+          { $or: [{ status: { $regex: /^pending$/i } }, { isApproved: false }] }
+        ]
       }).sort({ createdAt: -1 }),
 
       Listing.find({
-        category: { $regex: /^Seeking BOM Job$/i },
-        $or: [{ status: { $regex: /^pending$/i } }, { isApproved: false }],
+        $and: [
+          { $or: [{ category: { $regex: /seeker|seeking/i } }, { type: { $regex: /seeker|seeking/i } }] },
+          { $or: [{ status: { $regex: /^pending$/i } }, { isApproved: false }] }
+        ]
       }).sort({ createdAt: -1 }),
 
       Listing.find({
-        category: { $regex: /^BOM Vacancy$/i },
-        $or: [{ status: { $regex: /^pending$/i } }, { isApproved: false }],
+        $and: [
+          { $or: [{ category: { $regex: /vacancy|job/i } }, { type: { $regex: /vacancy|job/i } }] },
+          { $or: [{ status: { $regex: /^pending$/i } }, { isApproved: false }] }
+        ]
       }).sort({ createdAt: -1 }),
 
       User.find({
