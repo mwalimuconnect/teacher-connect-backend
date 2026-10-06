@@ -3,7 +3,7 @@ const router = express.Router();
 const Listing = require('../models/Listing');
 const User = require('../models/User');
 
-// Uniform Listing Formatter for Flutter parsing
+// Formatter to standardize listing object structures for Flutter clients
 const formatListing = (item) => {
   const doc = item._doc || item;
   const phoneVal = item.phone || item.contactPhone || item.phoneNumber || item.contactNumber || 'N/A';
@@ -31,10 +31,9 @@ const formatListing = (item) => {
 // GET /api/admin/stats - Aggregated Admin Dashboard Counters
 router.get('/stats', async (req, res) => {
   try {
-    // Count ALL records across the entire Listing collection
     const totalListings = await Listing.countDocuments({});
-
-    // Count pending user account registrations from the User collection
+    
+    // Count user accounts requiring admin approval
     const pendingUsers = await User.countDocuments({
       $or: [
         { status: { $regex: /^pending$/i } },
@@ -62,7 +61,7 @@ router.get('/stats', async (req, res) => {
   }
 });
 
-// GET /api/admin/bom-vacancies - Fetch all BOM Vacancies
+// GET /api/admin/bom-vacancies
 router.get('/bom-vacancies', async (req, res) => {
   try {
     const vacancies = await Listing.find({
@@ -79,7 +78,7 @@ router.get('/bom-vacancies', async (req, res) => {
   }
 });
 
-// GET /api/admin/bom-seekers - Fetch all BOM Job Seekers
+// GET /api/admin/bom-seekers
 router.get('/bom-seekers', async (req, res) => {
   try {
     const seekers = await Listing.find({
@@ -96,7 +95,7 @@ router.get('/bom-seekers', async (req, res) => {
   }
 });
 
-// GET /api/admin/pending-listings - Fetch Pending User Registrations
+// GET /api/admin/pending-listings - Fetch Pending Member Accounts
 router.get('/pending-listings', async (req, res) => {
   try {
     const pendingUsers = await User.find({
@@ -115,7 +114,7 @@ router.get('/pending-listings', async (req, res) => {
   }
 });
 
-// PUT /api/admin/approve-user/:id - Approve Pending User Account
+// PUT /api/admin/approve-user/:id - Approve Member Account
 router.put('/approve-user/:id', async (req, res) => {
   try {
     const updatedUser = await User.findByIdAndUpdate(
@@ -135,7 +134,7 @@ router.put('/approve-user/:id', async (req, res) => {
   }
 });
 
-// DELETE /api/admin/listing/:id - Delete listing endpoint
+// DELETE /api/admin/listing/:id
 const deleteListingHandler = async (req, res) => {
   try {
     const deletedItem = await Listing.findByIdAndDelete(req.params.id);
