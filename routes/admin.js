@@ -3,11 +3,11 @@ const router = express.Router();
 const Listing = require('../models/Listing');
 const User = require('../models/User');
 
-// Formatter to standardize listing object structures for Flutter clients
+// Formatter to standardize listing object structures for Flutter client
 const formatListing = (item) => {
   const doc = item._doc || item;
-  const phoneVal = item.phone || item.contactPhone || item.phoneNumber || item.contactNumber || 'N/A';
-  const schoolVal = item.currentSchool || item.school || item.schoolName || 'N/A';
+  const phoneVal = item.phone || item.contactPhone || item.phoneNumber;
+  const schoolVal = item.currentSchool || item.school || item.schoolName;
   const nameVal = item.fullName || item.teacherName || 'N/A';
 
   return {
@@ -32,7 +32,7 @@ const formatListing = (item) => {
 router.get('/stats', async (req, res) => {
   try {
     const totalListings = await Listing.countDocuments({});
-    
+
     // Count user accounts requiring admin approval
     const pendingUsers = await User.countDocuments({
       $or: [
@@ -40,6 +40,9 @@ router.get('/stats', async (req, res) => {
         { isApproved: false },
       ],
     });
+
+    // Count total registered users
+    const totalMembers = await User.countDocuments({});
 
     res.status(200).json({
       success: true,
@@ -50,6 +53,7 @@ router.get('/stats', async (req, res) => {
       pendingApprovals: pendingUsers,
       pendingCount: pendingUsers,
       paymentsReceived: 0,
+      totalMembers: totalMembers,
     });
   } catch (error) {
     console.error('Error fetching admin stats:', error);
@@ -57,6 +61,27 @@ router.get('/stats', async (req, res) => {
       error: 'Failed to fetch admin stats',
       totalListings: 0,
       pendingApprovals: 0,
+      totalMembers: 0,
+    });
+  }
+});
+
+// GET /api/admin/members - Fetch All Registered Members
+router.get('/members', async (req, res) => {
+  try {
+    const members = await User.find({})
+      .select('-password')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: members.length,
+      members: members,
+    });
+  } catch (error) {
+    console.error('Error fetching registered members:', error);
+    res.status(500).json({
+      error: 'Failed to fetch registered members',
     });
   }
 });
