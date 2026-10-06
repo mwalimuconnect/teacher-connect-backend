@@ -134,7 +134,6 @@ router.get('/download/:id', async (req, res) => {
     }
   }
 });
-});
 
 // =========================================================================
 // 4. POST /api/resources - UPLOAD/CREATE A NEW RESOURCE
