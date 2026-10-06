@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Listing = require('../models/Listing');
+const User = require('../models/User');
 
 // Uniform Listing Formatter for Flutter parsing
 const formatListing = (item) => {
@@ -30,23 +31,25 @@ const formatListing = (item) => {
 // GET /api/admin/stats - Aggregated Admin Dashboard Counters
 router.get('/stats', async (req, res) => {
   try {
-    // Count ALL records across the entire Listing collection (Swaps + BOM Vacancies + BOM Seekers)
+    // Count ALL records across the entire Listing collection
     const totalListings = await Listing.countDocuments({});
 
-    // Count pending approvals regardless of category casing
-    const pendingApprovals = await Listing.countDocuments({
-      status: { $regex: /^pending$/i },
+    // Count pending user account registrations from the User collection
+    const pendingUsers = await User.countDocuments({
+      $or: [
+        { status: { $regex: /^pending$/i } },
+        { isApproved: false },
+      ],
     });
 
-    // Provide multiple key variations so Flutter parses the count correctly regardless of field name
     res.status(200).json({
       success: true,
       totalListings: totalListings,
       totalCount: totalListings,
       total: totalListings,
       count: totalListings,
-      pendingApprovals: pendingApprovals,
-      pendingCount: pendingApprovals,
+      pendingApprovals: pendingUsers,
+      pendingCount: pendingUsers,
       paymentsReceived: 0,
     });
   } catch (error) {
@@ -93,17 +96,42 @@ router.get('/bom-seekers', async (req, res) => {
   }
 });
 
-// GET /api/admin/pending-listings - Fetch Pending Approvals
+// GET /api/admin/pending-listings - Fetch Pending User Registrations
 router.get('/pending-listings', async (req, res) => {
   try {
-    const pendingListings = await Listing.find({
-      status: { $regex: /^pending$/i },
-    }).sort({ createdAt: -1 });
+    const pendingUsers = await User.find({
+      $or: [
+        { status: { $regex: /^pending$/i } },
+        { isApproved: false },
+      ],
+    })
+      .select('-password')
+      .sort({ createdAt: -1 });
 
-    res.status(200).json(pendingListings.map(formatListing));
+    res.status(200).json(pendingUsers);
   } catch (error) {
-    console.error('Error fetching pending listings:', error);
-    res.status(500).json({ error: 'Failed to fetch pending listings' });
+    console.error('Error fetching pending users:', error);
+    res.status(500).json({ error: 'Failed to fetch pending users' });
+  }
+});
+
+// PUT /api/admin/approve-user/:id - Approve Pending User Account
+router.put('/approve-user/:id', async (req, res) => {
+  try {
+    const updatedUser = await User.findByIdAndUpdate(
+      req.params.id,
+      { status: 'approved', isApproved: true },
+      { new: true }
+    );
+
+    if (!updatedUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.status(200).json({ message: 'User approved successfully', user: updatedUser });
+  } catch (error) {
+    console.error('Error approving user:', error);
+    res.status(500).json({ error: 'Failed to approve user' });
   }
 });
 
