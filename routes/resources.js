@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Resource = require('../models/Resource'); // Fixed case-sensitivity for Vercel/Linux
+const axios = require('axios');
 
 // Default fallback items if the database has no records yet
 const sampleResources = [
@@ -85,6 +86,7 @@ router.get('/category/:category', async (req, res) => {
   }
 });
 
+
 // =========================================================================
 // 3. GET /api/resources/download/:id - File Download Proxy with Correct Headers
 // =========================================================================
@@ -107,7 +109,7 @@ router.get('/download/:id', async (req, res) => {
 
     const safeFilename = resource.title.replace(/[^a-zA-Z0-9_\-]/g, '_') + extension;
 
-    // Set HTTP Headers to ensure mobile devices open the file with Word/Excel
+    // Set binary content-disposition and mime headers
     res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}"`);
     if (extension === '.docx') {
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
@@ -117,12 +119,21 @@ router.get('/download/:id', async (req, res) => {
       res.setHeader('Content-Type', 'application/pdf');
     }
 
-    // Redirect or pipe from remote storage (e.g. Cloudinary / S3 / External URL)
-    return res.redirect(fileUrl);
+    // Stream the binary document directly through Express rather than redirecting
+    const response = await axios({
+      method: 'get',
+      url: fileUrl,
+      responseType: 'stream',
+    });
+
+    response.data.pipe(res);
   } catch (error) {
     console.error('Error downloading resource:', error);
-    return res.status(500).json({ success: false, message: error.message });
+    if (!res.headersSent) {
+      return res.status(500).json({ success: false, message: error.message });
+    }
   }
+});
 });
 
 // =========================================================================
