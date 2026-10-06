@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Listing = require('../models/Listing');
 
-// Uniform listing formatter for Flutter parsing
+// Uniform Listing Formatter for Flutter parsing
 const formatListing = (item) => {
   const doc = item._doc || item;
   const phoneVal = item.phone || item.contactPhone || item.phoneNumber || item.contactNumber || 'N/A';
@@ -18,12 +18,12 @@ const formatListing = (item) => {
     contactNumber: phoneVal,
     currentSchool: schoolVal,
     school: schoolVal,
-    user: { 
+    user: {
       name: nameVal,
       phone: phoneVal,
-      school: schoolVal
+      school: schoolVal,
     },
-    currentCounty: item.county || item.currentCounty || 'N/A'
+    currentCounty: item.county || item.currentCounty || 'N/A',
   };
 };
 
@@ -35,7 +35,7 @@ router.get('/stats', async (req, res) => {
 
     // Count pending approvals regardless of category casing
     const pendingApprovals = await Listing.countDocuments({
-      status: { $regex: /^pending$/i }
+      status: { $regex: /^pending$/i },
     });
 
     // Provide multiple key variations so Flutter parses the count correctly regardless of field name
@@ -47,14 +47,14 @@ router.get('/stats', async (req, res) => {
       count: totalListings,
       pendingApprovals: pendingApprovals,
       pendingCount: pendingApprovals,
-      paymentsReceived: 0
+      paymentsReceived: 0,
     });
   } catch (error) {
     console.error('Error fetching admin stats:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to fetch admin stats',
       totalListings: 0,
-      pendingApprovals: 0 
+      pendingApprovals: 0,
     });
   }
 });
@@ -63,7 +63,10 @@ router.get('/stats', async (req, res) => {
 router.get('/bom-vacancies', async (req, res) => {
   try {
     const vacancies = await Listing.find({
-      type: { $regex: /vacancy|job/i }
+      $or: [
+        { type: { $regex: /vacancy|job/i } },
+        { category: { $regex: /vacancy|job/i } },
+      ],
     }).sort({ createdAt: -1 });
 
     res.status(200).json(vacancies.map(formatListing));
@@ -77,7 +80,10 @@ router.get('/bom-vacancies', async (req, res) => {
 router.get('/bom-seekers', async (req, res) => {
   try {
     const seekers = await Listing.find({
-      type: { $regex: /seeker|seeking/i }
+      $or: [
+        { type: { $regex: /seeker|seeking/i } },
+        { category: { $regex: /seeker|seeking/i } },
+      ],
     }).sort({ createdAt: -1 });
 
     res.status(200).json(seekers.map(formatListing));
@@ -91,7 +97,7 @@ router.get('/bom-seekers', async (req, res) => {
 router.get('/pending-listings', async (req, res) => {
   try {
     const pendingListings = await Listing.find({
-      status: { $regex: /^pending$/i }
+      status: { $regex: /^pending$/i },
     }).sort({ createdAt: -1 });
 
     res.status(200).json(pendingListings.map(formatListing));
@@ -101,14 +107,21 @@ router.get('/pending-listings', async (req, res) => {
   }
 });
 
-// DELETE /api/admin/listing/:id - Delete listing
-router.delete('/listing/:id', async (req, res) => {
+// DELETE /api/admin/listing/:id - Delete listing endpoint
+const deleteListingHandler = async (req, res) => {
   try {
-    await Listing.findByIdAndDelete(req.params.id);
+    const deletedItem = await Listing.findByIdAndDelete(req.params.id);
+    if (!deletedItem) {
+      return res.status(404).json({ error: 'Listing not found' });
+    }
     res.status(200).json({ message: 'Listing deleted successfully' });
   } catch (error) {
+    console.error('Error deleting listing:', error);
     res.status(500).json({ error: 'Failed to delete listing' });
   }
-});
+};
+
+router.delete('/listing/:id', deleteListingHandler);
+router.delete('/:id', deleteListingHandler);
 
 module.exports = router;
