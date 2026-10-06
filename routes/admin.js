@@ -31,7 +31,7 @@ const formatListing = (item) => {
 // GET /api/admin/stats - Aggregated Admin Dashboard Counters
 router.get('/stats', async (req, res) => {
   try {
-    const totalListings = await Listing.countDocuments({});
+    const totalListings = await Listing.countDocuments();
 
     // Count user accounts requiring admin approval
     const pendingUsers = await User.countDocuments({
@@ -42,7 +42,7 @@ router.get('/stats', async (req, res) => {
     });
 
     // Count total registered users
-    const totalMembers = await User.countDocuments({});
+    const totalMembers = await User.countDocuments();
 
     res.status(200).json({
       success: true,
@@ -69,7 +69,7 @@ router.get('/stats', async (req, res) => {
 // GET /api/admin/members - Fetch All Registered Members
 router.get('/members', async (req, res) => {
   try {
-    const members = await User.find({})
+    const members = await User.find()
       .select('-password')
       .sort({ createdAt: -1 });
 
@@ -80,9 +80,81 @@ router.get('/members', async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching registered members:', error);
-    res.status(500).json({
-      error: 'Failed to fetch registered members',
+    res.status(500).json({ error: 'Failed to fetch registered members' });
+  }
+});
+
+// GET /api/admin/pending-approvals - Fetch All 4 Pending Categories
+router.get('/pending-approvals', async (req, res) => {
+  try {
+    const [pendingSwaps, pendingBomSeekers, pendingBomVacancies, pendingMembers] = await Promise.all([
+      Listing.find({
+        category: { $regex: /^TSC Swap$/i },
+        $or: [{ status: { $regex: /^pending$/i } }, { isApproved: false }],
+      }).sort({ createdAt: -1 }),
+
+      Listing.find({
+        category: { $regex: /^Seeking BOM Job$/i },
+        $or: [{ status: { $regex: /^pending$/i } }, { isApproved: false }],
+      }).sort({ createdAt: -1 }),
+
+      Listing.find({
+        category: { $regex: /^BOM Vacancy$/i },
+        $or: [{ status: { $regex: /^pending$/i } }, { isApproved: false }],
+      }).sort({ createdAt: -1 }),
+
+      User.find({
+        $or: [{ status: { $regex: /^pending$/i } }, { isApproved: false }],
+      })
+        .select('-password')
+        .sort({ createdAt: -1 }),
+    ]);
+
+    res.status(200).json({
+      swaps: pendingSwaps.map(formatListing),
+      bomSeekers: pendingBomSeekers.map(formatListing),
+      bomVacancies: pendingBomVacancies.map(formatListing),
+      members: pendingMembers,
     });
+  } catch (error) {
+    console.error('Error fetching pending approvals:', error);
+    res.status(500).json({ error: 'Failed to fetch pending approvals' });
+  }
+});
+
+// POST /api/admin/approve - Approve Member or Listing Item
+router.post('/approve', async (req, res) => {
+  const { id, type } = req.body;
+
+  try {
+    if (type === 'member') {
+      await User.findByIdAndUpdate(id, { status: 'approved', isApproved: true });
+    } else {
+      await Listing.findByIdAndUpdate(id, { status: 'approved', isApproved: true });
+    }
+
+    res.status(200).json({ success: true, message: 'Approved successfully' });
+  } catch (error) {
+    console.error('Error approving item:', error);
+    res.status(500).json({ error: 'Failed to approve item' });
+  }
+});
+
+// POST /api/admin/reject - Reject Member or Listing Item
+router.post('/reject', async (req, res) => {
+  const { id, type } = req.body;
+
+  try {
+    if (type === 'member') {
+      await User.findByIdAndUpdate(id, { status: 'rejected', isApproved: false });
+    } else {
+      await Listing.findByIdAndUpdate(id, { status: 'rejected', isApproved: false });
+    }
+
+    res.status(200).json({ success: true, message: 'Rejected successfully' });
+  } catch (error) {
+    console.error('Error rejecting item:', error);
+    res.status(500).json({ error: 'Failed to reject item' });
   }
 });
 
@@ -117,45 +189,6 @@ router.get('/bom-seekers', async (req, res) => {
   } catch (error) {
     console.error('Error fetching BOM seekers:', error);
     res.status(500).json({ error: 'Failed to fetch BOM seekers' });
-  }
-});
-
-// GET /api/admin/pending-listings - Fetch Pending Member Accounts
-router.get('/pending-listings', async (req, res) => {
-  try {
-    const pendingUsers = await User.find({
-      $or: [
-        { status: { $regex: /^pending$/i } },
-        { isApproved: false },
-      ],
-    })
-      .select('-password')
-      .sort({ createdAt: -1 });
-
-    res.status(200).json(pendingUsers);
-  } catch (error) {
-    console.error('Error fetching pending users:', error);
-    res.status(500).json({ error: 'Failed to fetch pending users' });
-  }
-});
-
-// PUT /api/admin/approve-user/:id - Approve Member Account
-router.put('/approve-user/:id', async (req, res) => {
-  try {
-    const updatedUser = await User.findByIdAndUpdate(
-      req.params.id,
-      { status: 'approved', isApproved: true },
-      { new: true }
-    );
-
-    if (!updatedUser) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    res.status(200).json({ message: 'User approved successfully', user: updatedUser });
-  } catch (error) {
-    console.error('Error approving user:', error);
-    res.status(500).json({ error: 'Failed to approve user' });
   }
 });
 
