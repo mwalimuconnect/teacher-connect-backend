@@ -1,30 +1,34 @@
 const express = require('express');
 const router = express.Router();
-const Listing = require('../models/Listing'); // Fixed case-sensitivity for Vercel/Linux
+const Listing = require('../models/Listing');
 
-// Helper to format listing data consistently
+// Helper to format listing data consistently for Flutter UI
 const formatListing = (item) => {
   const doc = item._doc || item;
 
   const phoneVal = item.phone || item.contactPhone || item.phoneNumber || '';
   const schoolVal = item.currentSchool || item.school || item.schoolName || '';
-  const nameVal = item.fullName || item.teacherName || 'N/A';
-
-  // Extract Subject Combination properly from Listing schema
+  const nameVal = item.fullName || item.teacherName || item.userName || 'N/A';
   const subjectsVal = item.subjectCombination || item.subjects || item.subject || 'N/A';
 
-  // Format Target Location string nicely
-  let targetVal = '';
-  if (item.targetCounty && item.targetSubCounty) {
-    targetVal = `${item.targetCounty} (${item.targetSubCounty})`;
-  } else if (item.targetCounty) {
-    targetVal = item.targetCounty;
-  } else if (item.targetSubCounty) {
-    targetVal = item.targetSubCounty;
+  // Extract target location string
+  let targetVal = item.targetLocation || '';
+  if (!targetVal) {
+    if (item.targetCounty && item.targetSubCounty) {
+      targetVal = `${item.targetCounty} (${item.targetSubCounty})`;
+    } else if (item.targetCounty) {
+      targetVal = item.targetCounty;
+    } else if (item.targetSubCounty) {
+      targetVal = item.targetSubCounty;
+    }
   }
+
+  const categoryType = item.type || item.category || 'TSC Swap';
 
   return {
     ...doc,
+    _id: item._id,
+    id: item._id,
     teacherName: nameVal,
     fullName: nameVal,
     phone: phoneVal,
@@ -34,33 +38,40 @@ const formatListing = (item) => {
     school: schoolVal,
     subjectCombination: subjectsVal,
     subjects: subjectsVal,
+    subject: subjectsVal,
     targetLocation: targetVal,
+    targetCounty: item.targetCounty || targetVal,
+    targetSubCounty: item.targetSubCounty || '',
+    county: item.county || item.currentCounty || 'N/A',
+    currentCounty: item.county || item.currentCounty || 'N/A',
+    type: categoryType,
+    category: categoryType,
     user: {
       name: nameVal,
       phone: phoneVal,
       school: schoolVal,
     },
-    currentCounty: item.county || item.currentCounty || 'N/A',
   };
 };
 
 // =========================================================================
-// 1. GET ALL LISTINGS OR FILTER BY QUERY STRING (?type=...)
+// 1. GET ALL LISTINGS OR FILTER BY QUERY STRING (?type=... or ?category=...)
 // =========================================================================
 router.get('/', async (req, res) => {
   try {
     const filter = {};
-    const queryType = req.query.type;
+    const queryType = req.query.type || req.query.category;
 
-    if (queryType) {
+    if (queryType && queryType.toLowerCase() !== 'all') {
       if (/swap/i.test(queryType)) {
-        filter.type = 'TSC Swap';
-      } else if ((/vacancy/i.test(queryType) || /job/i.test(queryType)) && !/seeker/i.test(queryType)) {
-        filter.type = 'BOM Vacancy';
-      } else if (/seeker/i.test(queryType) || /seeking/i.test(queryType)) {
-        filter.type = 'Seeking BOM Job';
+        filter.$or = [{ type: 'TSC Swap' }, { category: 'TSC Swap' }];
+      } else if (/vacancy|job/i.test(queryType) && !/seeker/i.test(queryType)) {
+        filter.$or = [{ type: 'BOM Vacancy' }, { category: 'BOM Vacancy' }];
+      } else if (/seeker|seeking/i.test(queryType)) {
+        filter.$or = [{ type: 'Seeking BOM Job' }, { category: 'Seeking BOM Job' }];
       } else {
-        filter.type = new RegExp(queryType, 'i');
+        const regex = new RegExp(queryType, 'i');
+        filter.$or = [{ type: regex }, { category: regex }];
       }
     }
 
@@ -80,16 +91,19 @@ router.get('/', async (req, res) => {
 router.get('/type/:type', async (req, res) => {
   try {
     const requestedType = req.params.type;
-    let typeQuery = {};
+    const typeQuery = {};
 
-    if (/swap/i.test(requestedType)) {
-      typeQuery = { type: 'TSC Swap' };
-    } else if (/seeker/i.test(requestedType) || /seeking/i.test(requestedType)) {
-      typeQuery = { type: 'Seeking BOM Job' };
-    } else if (/vacancy/i.test(requestedType) || /job/i.test(requestedType)) {
-      typeQuery = { type: 'BOM Vacancy' };
-    } else {
-      typeQuery = { type: new RegExp(requestedType, 'i') };
+    if (requestedType && requestedType.toLowerCase() !== 'all') {
+      if (/swap/i.test(requestedType)) {
+        typeQuery.$or = [{ type: 'TSC Swap' }, { category: 'TSC Swap' }];
+      } else if (/seeker|seeking/i.test(requestedType)) {
+        typeQuery.$or = [{ type: 'Seeking BOM Job' }, { category: 'Seeking BOM Job' }];
+      } else if (/vacancy|job/i.test(requestedType)) {
+        typeQuery.$or = [{ type: 'BOM Vacancy' }, { category: 'BOM Vacancy' }];
+      } else {
+        const regex = new RegExp(requestedType, 'i');
+        typeQuery.$or = [{ type: regex }, { category: regex }];
+      }
     }
 
     const listings = await Listing.find(typeQuery).sort({ createdAt: -1 });
@@ -123,8 +137,29 @@ router.get('/:id', async (req, res) => {
 // =========================================================================
 router.post('/', async (req, res) => {
   try {
-    const newListing = new Listing(req.body);
+    const body = req.body;
+
+    // Normalize incoming payload from Flutter
+    const listingData = {
+      ...body,
+      fullName: body.fullName || body.teacherName || 'Teacher',
+      teacherName: body.teacherName || body.fullName || 'Teacher',
+      phone: body.phone || body.phoneNumber || '',
+      phoneNumber: body.phoneNumber || body.phone || '',
+      subjectCombination: body.subjectCombination || body.subjects || body.subject || '',
+      county: body.county || body.currentCounty || '',
+      currentCounty: body.currentCounty || body.county || '',
+      targetCounty: body.targetCounty || body.desiredCounty || '',
+      targetSubCounty: body.targetSubCounty || '',
+      currentSchool: body.currentSchool || body.school || '',
+      tscNumber: body.tscNumber || '',
+      type: body.type || body.category || body.listingCategory || 'TSC Swap',
+      category: body.category || body.type || body.listingCategory || 'TSC Swap',
+    };
+
+    const newListing = new Listing(listingData);
     const savedListing = await newListing.save();
+
     return res.status(201).json({
       success: true,
       message: 'Listing created successfully',
@@ -137,14 +172,14 @@ router.post('/', async (req, res) => {
 });
 
 // =========================================================================
-// 5. UPDATE LISTING (/api/listings/:id) - FIXES THE 404 ERROR
+// 5. UPDATE LISTING (/api/listings/:id)
 // =========================================================================
 router.put('/:id', async (req, res) => {
   try {
     const updatedListing = await Listing.findByIdAndUpdate(
       req.params.id,
       req.body,
-      { new: true, runValidators: true }
+      { new: true, runValidators: false }
     );
 
     if (!updatedListing) {
@@ -162,13 +197,12 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// Support PATCH requests as well for updates
 router.patch('/:id', async (req, res) => {
   try {
     const updatedListing = await Listing.findByIdAndUpdate(
       req.params.id,
       req.body,
-      { new: true, runValidators: true }
+      { new: true, runValidators: false }
     );
 
     if (!updatedListing) {
