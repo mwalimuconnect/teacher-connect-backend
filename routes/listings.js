@@ -54,24 +54,31 @@ const formatListing = (item) => {
   };
 };
 
-// =========================================================================
-// 1. GET ALL LISTINGS OR FILTER BY QUERY STRING (?type=... or ?category=...)
-// =========================================================================
+// ===============================================================
+// 1. GET ALL LISTINGS (FETCH ONLY APPROVED FOR MEMBERS FEED)
+// ===============================================================
 router.get('/', async (req, res) => {
   try {
-    const filter = {};
+    const filter = {
+      $or: [
+        { status: { $regex: /^approved$/i } },
+        { status: { $exists: false } },
+        { isApproved: true },
+      ],
+    };
+
     const queryType = req.query.type || req.query.category;
 
     if (queryType && queryType.toLowerCase() !== 'all') {
       if (/swap/i.test(queryType)) {
-        filter.$or = [{ type: 'TSC Swap' }, { category: 'TSC Swap' }];
+        filter.$and = [{$or: [{ type: 'TSC Swap' }, { category: 'TSC Swap' }] }];
       } else if (/vacancy|job/i.test(queryType) && !/seeker/i.test(queryType)) {
-        filter.$or = [{ type: 'BOM Vacancy' }, { category: 'BOM Vacancy' }];
+        filter.$and = [{$or: [{ type: 'BOM Vacancy' }, { category: 'BOM Vacancy' }] }];
       } else if (/seeker|seeking/i.test(queryType)) {
-        filter.$or = [{ type: 'Seeking BOM Job' }, { category: 'Seeking BOM Job' }];
+        filter.$and = [{$or: [{ type: 'Seeking BOM Job' }, { category: 'Seeking BOM Job' }] }];
       } else {
         const regex = new RegExp(queryType, 'i');
-        filter.$or = [{ type: regex }, { category: regex }];
+        filter.$and = [{$or: [{ type: regex }, { category: regex }] }];
       }
     }
 
@@ -85,24 +92,30 @@ router.get('/', async (req, res) => {
   }
 });
 
-// =========================================================================
+// ===============================================================
 // 2. GET LISTINGS BY TAB TYPE (/api/listings/type/:type)
-// =========================================================================
+// ===============================================================
 router.get('/type/:type', async (req, res) => {
   try {
     const requestedType = req.params.type;
-    const typeQuery = {};
+    const typeQuery = {
+      $or: [
+        { status: { $regex: /^approved$/i } },
+        { status: { $exists: false } },
+        { isApproved: true },
+      ],
+    };
 
     if (requestedType && requestedType.toLowerCase() !== 'all') {
       if (/swap/i.test(requestedType)) {
-        typeQuery.$or = [{ type: 'TSC Swap' }, { category: 'TSC Swap' }];
+        typeQuery.$and = [{$or: [{ type: 'TSC Swap' }, { category: 'TSC Swap' }] }];
       } else if (/seeker|seeking/i.test(requestedType)) {
-        typeQuery.$or = [{ type: 'Seeking BOM Job' }, { category: 'Seeking BOM Job' }];
+        typeQuery.$and = [{$or: [{ type: 'Seeking BOM Job' }, { category: 'Seeking BOM Job' }] }];
       } else if (/vacancy|job/i.test(requestedType)) {
-        typeQuery.$or = [{ type: 'BOM Vacancy' }, { category: 'BOM Vacancy' }];
+        typeQuery.$and = [{$or: [{ type: 'BOM Vacancy' }, { category: 'BOM Vacancy' }] }];
       } else {
         const regex = new RegExp(requestedType, 'i');
-        typeQuery.$or = [{ type: regex }, { category: regex }];
+        typeQuery.$and = [{$or: [{ type: regex }, { category: regex }] }];
       }
     }
 
@@ -116,9 +129,9 @@ router.get('/type/:type', async (req, res) => {
   }
 });
 
-// =========================================================================
+// ===============================================================
 // 3. GET SINGLE LISTING BY ID (/api/listings/:id)
-// =========================================================================
+// ===============================================================
 router.get('/:id', async (req, res) => {
   try {
     const listing = await Listing.findById(req.params.id);
@@ -132,9 +145,9 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// =========================================================================
+// ===============================================================
 // 4. CREATE NEW LISTING (/api/listings)
-// =========================================================================
+// ===============================================================
 router.post('/', async (req, res) => {
   try {
     const body = req.body;
@@ -155,6 +168,9 @@ router.post('/', async (req, res) => {
       tscNumber: body.tscNumber || '',
       type: body.type || body.category || body.listingCategory || 'TSC Swap',
       category: body.category || body.type || body.listingCategory || 'TSC Swap',
+      status: 'pending',
+      isApproved: false,
+      createdAt: new Date(),
     };
 
     const newListing = new Listing(listingData);
@@ -162,7 +178,7 @@ router.post('/', async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: 'Listing created successfully',
+      message: 'Listing created successfully and sent for admin approval.',
       data: formatListing(savedListing),
     });
   } catch (err) {
@@ -171,9 +187,9 @@ router.post('/', async (req, res) => {
   }
 });
 
-// =========================================================================
+// ===============================================================
 // 5. UPDATE LISTING (/api/listings/:id)
-// =========================================================================
+// ===============================================================
 router.put('/:id', async (req, res) => {
   try {
     const updatedListing = await Listing.findByIdAndUpdate(
@@ -220,9 +236,9 @@ router.patch('/:id', async (req, res) => {
   }
 });
 
-// =========================================================================
+// ===============================================================
 // 6. DELETE LISTING (/api/listings/:id)
-// =========================================================================
+// ===============================================================
 router.delete('/:id', async (req, res) => {
   try {
     const deletedListing = await Listing.findByIdAndDelete(req.params.id);
