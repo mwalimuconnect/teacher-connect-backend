@@ -11,6 +11,9 @@ const formatListing = (item) => {
   const nameVal = item.fullName || item.teacherName || item.userName || 'N/A';
   const subjectsVal = item.subjectCombination || item.subjects || item.subject || 'N/A';
 
+  // Extract TSC Number across possible property keys
+  const tscVal = item.tscNumber || item.tscNo || item.tsc || (item.user && item.user.tscNumber) || 'N/A';
+
   // Extract target location string
   let targetVal = item.targetLocation || '';
   if (!targetVal) {
@@ -34,6 +37,9 @@ const formatListing = (item) => {
     phone: phoneVal,
     phoneNumber: phoneVal,
     contactNumber: phoneVal,
+    tscNumber: tscVal,
+    tscNo: tscVal,
+    tsc: tscVal,
     currentSchool: schoolVal,
     school: schoolVal,
     subjectCombination: subjectsVal,
@@ -50,12 +56,13 @@ const formatListing = (item) => {
       name: nameVal,
       phone: phoneVal,
       school: schoolVal,
+      tscNumber: tscVal,
     },
   };
 };
 
 // =================================================================
-// 1. GET ALL LISTINGS (WITH PAGINATION, CATEGORY FILTER, ADMIN OVERRIDE)
+// 1. GET ALL LISTINGS (WITH PAGINATION, CATEGORY FILTER, ADMIN BYPASS)
 // =================================================================
 router.get('/', async (req, res) => {
   try {
@@ -66,7 +73,7 @@ router.get('/', async (req, res) => {
 
     let filter = {};
 
-    // Apply approval filter for public member feeds unless called by admin
+    // Apply approval filter for public member feeds unless client is admin
     if (!isAdmin) {
       filter.$or = [
         { status: { $regex: /^approved$/i } },
@@ -82,7 +89,7 @@ router.get('/', async (req, res) => {
 
       if (/swap/i.test(queryType)) {
         categoryFilter = [{ type: 'TSC Swap' }, { category: 'TSC Swap' }];
-      } else if (/vacancy|job/i.test(queryType) && !/seeker/i.test(queryType)) {
+      } else if (/vacancy|job/i.test(queryType) && !/seeker|seeking/i.test(queryType)) {
         categoryFilter = [{ type: 'BOM Vacancy' }, { category: 'BOM Vacancy' }];
       } else if (/seeker|seeking/i.test(queryType)) {
         categoryFilter = [{ type: 'Seeking BOM Job' }, { category: 'Seeking BOM Job' }];
@@ -161,7 +168,7 @@ router.get('/type/:type', async (req, res) => {
     return res.status(200).json(formatted);
   } catch (err) {
     console.error('Error fetching listings by type:', err);
-    return res.status(500).json({ error: err.message || 'Failed to fetch listings' });
+    return res.status(500).json({ error: err.message || 'Failed to fetch listings by type' });
   }
 });
 
@@ -177,7 +184,7 @@ router.get('/:id', async (req, res) => {
     return res.status(200).json(formatListing(listing));
   } catch (err) {
     console.error('Error fetching listing:', err);
-    return res.status(500).json({ success: false, message: err.message });
+    return res.status(500).json({ success: false, error: err.message });
   }
 });
 
@@ -194,13 +201,13 @@ router.post('/', async (req, res) => {
       teacherName: body.teacherName || body.fullName || 'Teacher',
       phone: body.phone || body.phoneNumber || '',
       phoneNumber: body.phoneNumber || body.phone || '',
-      subjectCombination: body.subjectCombination || body.subjects || body.subject || '',
+      subjectCombination: body.subjectCombination || body.subjects || '',
       county: body.county || body.currentCounty || '',
       currentCounty: body.currentCounty || body.county || '',
       targetCounty: body.targetCounty || body.desiredCounty || '',
       targetSubCounty: body.targetSubCounty || '',
       currentSchool: body.currentSchool || body.school || '',
-      tscNumber: body.tscNumber || '',
+      tscNumber: body.tscNumber || body.tscNo || body.tsc || '',
       type: body.type || body.category || body.listingCategory || 'TSC Swap',
       category: body.category || body.type || body.listingCategory || 'TSC Swap',
       status: 'pending',
@@ -213,7 +220,7 @@ router.post('/', async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: 'Listing created successfully and sent for admin approval.',
+      message: 'Listing created successfully and sent for approval',
       data: formatListing(savedListing),
     });
   } catch (err) {
