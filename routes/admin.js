@@ -11,6 +11,9 @@ const formatListing = (item) => {
   const schoolVal = item.currentSchool || item.school || item.schoolName || '';
   const nameVal = item.fullName || item.teacherName || item.userName || 'N/A';
   const subjectsVal = item.subjectCombination || item.subjects || item.subject || 'N/A';
+  
+  // Extract TSC Number across possible property names
+  const tscVal = item.tscNumber || item.tscNo || item.tsc || (item.user && item.user.tscNumber) || 'N/A';
 
   let targetVal = item.targetLocation || '';
   if (!targetVal) {
@@ -34,6 +37,9 @@ const formatListing = (item) => {
     phone: phoneVal,
     phoneNumber: phoneVal,
     contactNumber: phoneVal,
+    tscNumber: tscVal,
+    tscNo: tscVal,
+    tsc: tscVal,
     currentSchool: schoolVal,
     school: schoolVal,
     subjectCombination: subjectsVal,
@@ -50,6 +56,7 @@ const formatListing = (item) => {
       name: nameVal,
       phone: phoneVal,
       school: schoolVal,
+      tscNumber: tscVal,
     },
   };
 };
