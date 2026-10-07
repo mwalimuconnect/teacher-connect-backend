@@ -41,9 +41,9 @@ const formatResource = (item) => {
   };
 };
 
-// =========================================================================
-// 1. GET /api/resources - Fetch all resources or filter by category/search
-// =========================================================================
+// ============================================================================
+// 1. GET /api/resources - Fetch all resources or filter by category
+// ============================================================================
 router.get('/', async (req, res) => {
   try {
     const { category, search, form } = req.query;
@@ -63,8 +63,8 @@ router.get('/', async (req, res) => {
 
     let resources = await Resource.find(query).sort({ createdAt: -1 });
 
-    // If MongoDB returns no items and no search/category filter was passed, return sample fallbacks
-    if (resources.length === 0 && (!category || category.toLowerCase() === 'all')) {
+    // If MongoDB returns no items and no search/category filter was active
+    if (resources.length === 0 && (!category || category.toLowerCase() === 'all') && !search) {
       return res.status(200).json(sampleResources.map(formatResource));
     }
 
@@ -76,9 +76,9 @@ router.get('/', async (req, res) => {
   }
 });
 
-// =========================================================================
-// 2. GET /api/resources/category/:category - Fetch by category parameter
-// =========================================================================
+// ============================================================================
+// 2. GET /api/resources/category/:category - Fetch by category param
+// ============================================================================
 router.get('/category/:category', async (req, res) => {
   try {
     const catParam = req.params.category;
@@ -98,19 +98,33 @@ router.get('/category/:category', async (req, res) => {
   }
 });
 
-// =========================================================================
-// 3. GET /api/resources/download/:id - File Download Proxy with Correct Headers
-// =========================================================================
+// ============================================================================
+// 3. GET /api/resources/download/:id - File Download Proxy with Admin Bypass & Payment Check
+// ============================================================================
 router.get('/download/:id', async (req, res) => {
   try {
+    const { isAdmin } = req.query;
     const resource = await Resource.findById(req.params.id);
+
     if (!resource) {
       return res.status(404).json({ success: false, message: 'Resource not found' });
     }
 
     const fileUrl = resource.fileUrl;
     if (!fileUrl) {
-      return res.status(400).json({ success: false, message: 'No file URL associated with this resource' });
+      return res.status(400).json({ success: false, message: 'No file URL attached to this resource' });
+    }
+
+    // Check payment & admin authorization
+    const isFree = !resource.price || resource.price <= 0;
+    const hasAdminAccess = isAdmin === 'true' || isAdmin === true;
+    const isPaid = resource.isPaid === true;
+
+    if (!isFree && !hasAdminAccess && !isPaid) {
+      return res.status(403).json({
+        success: false,
+        message: 'Payment required to download this resource.',
+      });
     }
 
     // Detect file extension or default to .docx
@@ -119,10 +133,10 @@ router.get('/download/:id', async (req, res) => {
     if (fileUrl.includes('.pdf')) extension = '.pdf';
     if (fileUrl.includes('.ppt') || fileUrl.includes('.pptx')) extension = '.pptx';
 
-    const safeFilename = resource.title.replace(/[^a-zA-Z0-9_\-]/g, '_') + extension;
+    const safeFilename = resource.title.replace(/[^a-zA-Z0-9_\-]/g, '_');
 
     // Set binary content-disposition and mime headers
-    res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}${extension}"`);
     if (extension === '.docx') {
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
     } else if (extension === '.xlsx') {
@@ -131,7 +145,7 @@ router.get('/download/:id', async (req, res) => {
       res.setHeader('Content-Type', 'application/pdf');
     }
 
-    // Stream the binary document directly through Express rather than redirecting
+    // Stream binary document directly through Express
     const response = await axios({
       method: 'get',
       url: fileUrl,
@@ -147,9 +161,9 @@ router.get('/download/:id', async (req, res) => {
   }
 });
 
-// =========================================================================
+// ============================================================================
 // 4. POST /api/resources - UPLOAD/CREATE A NEW RESOURCE
-// =========================================================================
+// ============================================================================
 router.post('/', async (req, res) => {
   try {
     const { title, category, subject, form, fileUrl, price, description } = req.body;
