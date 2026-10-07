@@ -110,6 +110,7 @@ router.post('/stkpush', getAccessToken, async (req, res) => {
       success: true,
       message: 'STK Push prompt sent to phone',
       data: response.data,
+      checkoutRequestId: response.data.CheckoutRequestID,
     });
   } catch (error) {
     console.error('Error triggering STK Push:', error.response?.data || error.message);
@@ -121,7 +122,71 @@ router.post('/stkpush', getAccessToken, async (req, res) => {
 });
 
 // =========================================================================
-// 2. POST Route: M-Pesa Callback Endpoint
+// 2. POST Route: Verify STK Push Payment Status (For Flutter Polling)
+// =========================================================================
+router.post('/query-status', getAccessToken, async (req, res) => {
+  try {
+    const { checkoutRequestId, CheckoutRequestID } = req.body;
+    const targetRequestId = checkoutRequestId || CheckoutRequestID;
+
+    if (!targetRequestId) {
+      return res.status(400).json({ success: false, message: 'CheckoutRequestID is required' });
+    }
+
+    const shortCode = process.env.MPESA_BUSINESS_SHORTCODE || process.env.MPESA_SHORTCODE || '174379';
+    const passKey = process.env.MPESA_PASSKEY;
+
+    if (!passKey) {
+      return res.status(500).json({ success: false, message: 'M-Pesa Passkey missing on server' });
+    }
+
+    const timestamp = getTimestamp();
+    const password = Buffer.from(`${shortCode}${passKey}${timestamp}`).toString('base64');
+    const queryUrl = `${req.baseUrl}/mpesa/stkpushquery/v1/query`;
+
+    const payload = {
+      BusinessShortCode: shortCode,
+      Password: password,
+      Timestamp: timestamp,
+      CheckoutRequestID: targetRequestId,
+    };
+
+    const response = await axios.post(queryUrl, payload, {
+      headers: {
+        Authorization: `Bearer ${req.accessToken}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    const resultCode = response.data?.ResultCode;
+
+    // ResultCode '0' means payment was confirmed by Safaricom
+    if (resultCode === '0' || resultCode === 0) {
+      return res.status(200).json({
+        success: true,
+        message: 'Payment confirmed successfully',
+        data: response.data,
+      });
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: response.data?.ResultDesc || 'Payment not completed yet',
+        resultCode: resultCode,
+      });
+    }
+  } catch (error) {
+    console.error('STK Query Error:', error.response?.data || error.message);
+    
+    // Safaricom sends a 500 error if the transaction is still pending/processing
+    return res.status(400).json({
+      success: false,
+      message: error.response?.data?.errorMessage || 'Payment pending or cancelled',
+    });
+  }
+});
+
+// =========================================================================
+// 3. POST Route: M-Pesa Callback Endpoint
 // =========================================================================
 router.post('/callback', (req, res) => {
   try {
