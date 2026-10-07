@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const Resource = require('../models/Resource'); // Fixed case-sensitivity for Vercel/Linux
+const Resource = require('../models/Resource');
 const axios = require('axios');
 
 // Default fallback items if the database has no records yet
@@ -10,6 +10,7 @@ const sampleResources = [
     title: 'Form 4 English Schemes of Work (Term 1-3)',
     category: 'Schemes of Work',
     subject: 'English',
+    form: 'Form 4',
     fileUrl: 'https://example.com/schemes.docx',
     price: 0,
   },
@@ -18,6 +19,7 @@ const sampleResources = [
     title: 'Blossoms of the Savannah Comprehensive Lesson Plan',
     category: 'Lesson Plans',
     subject: 'Literature',
+    form: 'Form 3',
     fileUrl: 'https://example.com/lesson_plan.docx',
     price: 0,
   },
@@ -37,7 +39,7 @@ const formatResource = (item) => {
 // =========================================================================
 router.get('/', async (req, res) => {
   try {
-    const { category, search } = req.query;
+    const { category, search, form } = req.query;
     let query = {};
 
     if (category && category.toLowerCase() !== 'all') {
@@ -48,10 +50,13 @@ router.get('/', async (req, res) => {
       query.title = { $regex: new RegExp(search, 'i') };
     }
 
-    // Fixed typo: Resource.find instead of Resourca.find
+    if (form && form.toLowerCase() !== 'all') {
+      query.form = { $regex: new RegExp(form, 'i') };
+    }
+
     let resources = await Resource.find(query).sort({ createdAt: -1 });
 
-    // If MongoDB returns no items, return sample fallbacks
+    // If MongoDB returns no items and no search/category filter was passed, return sample fallbacks
     if (resources.length === 0 && !search && (!category || category.toLowerCase() === 'all')) {
       return res.status(200).json(sampleResources);
     }
@@ -86,7 +91,6 @@ router.get('/category/:category', async (req, res) => {
   }
 });
 
-
 // =========================================================================
 // 3. GET /api/resources/download/:id - File Download Proxy with Correct Headers
 // =========================================================================
@@ -106,6 +110,7 @@ router.get('/download/:id', async (req, res) => {
     let extension = '.docx';
     if (fileUrl.includes('.xlsx')) extension = '.xlsx';
     if (fileUrl.includes('.pdf')) extension = '.pdf';
+    if (fileUrl.includes('.ppt') || fileUrl.includes('.pptx')) extension = '.pptx';
 
     const safeFilename = resource.title.replace(/[^a-zA-Z0-9_\-]/g, '_') + extension;
 
@@ -140,22 +145,24 @@ router.get('/download/:id', async (req, res) => {
 // =========================================================================
 router.post('/', async (req, res) => {
   try {
-    const { title, category, subject, fileUrl, price, description } = req.body || {};
+    const { title, category, subject, form, fileUrl, price, description } = req.body;
 
     if (!title || !category || !fileUrl) {
-      return res.status(400).json({ error: 'Title, Category, and File URL are required fields.' });
+      return res.status(400).json({ error: 'Title, Category, and File URL are required.' });
     }
 
     const newResource = new Resource({
       title,
       category,
       subject: subject || 'General',
+      form: form || 'General',
       fileUrl,
-      price: price || 0,
+      price: price !== undefined ? price : 0,
       description: description || '',
     });
 
     await newResource.save();
+
     return res.status(201).json({
       success: true,
       message: 'Resource uploaded successfully!',
