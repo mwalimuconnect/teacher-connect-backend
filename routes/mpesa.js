@@ -19,8 +19,14 @@ const getAccessToken = async (req, res, next) => {
   try {
     const consumerKey = process.env.MPESA_CONSUMER_KEY;
     const consumerSecret = process.env.MPESA_CONSUMER_SECRET;
+    const environment = process.env.MPESA_ENV || 'sandbox';
 
-    const url = 'https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials';
+    const baseUrl =
+      environment === 'production'
+        ? 'https://api.safaricom.co.ke'
+        : 'https://sandbox.safaricom.co.ke';
+
+    const url = `${baseUrl}/oauth/v1/generate?grant_type=client_credentials`;
     const auth = Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64');
 
     const response = await axios.get(url, {
@@ -30,6 +36,7 @@ const getAccessToken = async (req, res, next) => {
     });
 
     req.accessToken = response.data.access_token;
+    req.baseUrl = baseUrl;
     next();
   } catch (error) {
     console.error('Error generating access token:', error.response?.data || error.message);
@@ -37,7 +44,9 @@ const getAccessToken = async (req, res, next) => {
   }
 };
 
-// POST Route: Trigger STK Push
+// =========================================================================
+// 1. POST Route: Trigger STK Push
+// =========================================================================
 router.post('/stkpush', getAccessToken, async (req, res) => {
   try {
     const { phone, amount, accountReference, transactionDesc } = req.body;
@@ -46,8 +55,8 @@ router.post('/stkpush', getAccessToken, async (req, res) => {
       return res.status(400).json({ error: 'Phone number and amount are required' });
     }
 
-    // Format phone number to 2547XXXXXXXX
-    let formattedPhone = phone.trim();
+    // Format phone number to 254XXXXXXXXX
+    let formattedPhone = phone.toString().trim().replace(/[\s+-]/g, '');
     if (formattedPhone.startsWith('0')) {
       formattedPhone = `254${formattedPhone.slice(1)}`;
     } else if (formattedPhone.startsWith('+254')) {
@@ -59,7 +68,7 @@ router.post('/stkpush', getAccessToken, async (req, res) => {
     const timestamp = getTimestamp();
 
     const password = Buffer.from(`${shortCode}${passKey}${timestamp}`).toString('base64');
-    const stkPushUrl = 'https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest';
+    const stkPushUrl = `${req.baseUrl}/mpesa/stkpush/v1/processrequest`;
 
     const payload = {
       BusinessShortCode: shortCode,
@@ -96,7 +105,9 @@ router.post('/stkpush', getAccessToken, async (req, res) => {
   }
 });
 
-// POST Route: M-Pesa Callback Endpoint
+// =========================================================================
+// 2. POST Route: M-Pesa Callback Endpoint
+// =========================================================================
 router.post('/callback', (req, res) => {
   try {
     const callbackData = req.body;
@@ -109,18 +120,21 @@ router.post('/callback', (req, res) => {
       const items = stkCallback?.CallbackMetadata?.Item || [];
       const receipt = items.find((item) => item.Name === 'MpesaReceiptNumber')?.Value;
       const amountPaid = items.find((item) => item.Name === 'Amount')?.Value;
+      const phone = items.find((item) => item.Name === 'PhoneNumber')?.Value;
 
-      console.log(`Payment Success: Receipt ${receipt}, Amount: ${amountPaid}`);
+      console.log(`Payment Success: Receipt ${receipt}, Amount: KSh ${amountPaid}, Phone: ${phone}`);
+      
+      // TODO: Update transaction record / unlock resource in DB if storing payment status
     } else {
       console.log(`Payment Failed/Cancelled: ResultCode ${resultCode}`);
     }
 
-    // Always respond to Safaricom with 200 OK so they don't retry failed requests
-    return res.status(200).json({ ResultCode: 0, ResultDesc: "Accepted" });
+    // Always respond to Safaricom with 200 OK to acknowledge receipt
+    return res.status(200).json({ ResultCode: 0, ResultDesc: 'Accepted' });
   } catch (error) {
     console.error('Callback parsing error:', error);
-    // Still return 200 to Safaricom to prevent repeated serverless function crashes
-    return res.status(200).json({ ResultCode: 0, ResultDesc: "Accepted with errors" });
+    // Return 200 to Safaricom even on error to prevent repeated serverless retries
+    return res.status(200).json({ ResultCode: 0, ResultDesc: 'Accepted with errors' });
   }
 });
 
