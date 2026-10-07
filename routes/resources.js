@@ -63,7 +63,6 @@ router.get('/', async (req, res) => {
 
     let resources = await Resource.find(query).sort({ createdAt: -1 });
 
-    // If MongoDB returns no items and no search/category filter was active
     if (resources.length === 0 && (!category || category.toLowerCase() === 'all') && !search) {
       return res.status(200).json(sampleResources.map(formatResource));
     }
@@ -99,7 +98,7 @@ router.get('/category/:category', async (req, res) => {
 });
 
 // ============================================================================
-// 3. GET /api/resources/download/:id - File Download Proxy with Admin Bypass & Payment Check
+// 3. GET /api/resources/download/:id - File Download Proxy (With ZIP Support)
 // ============================================================================
 router.get('/download/:id', async (req, res) => {
   try {
@@ -127,22 +126,28 @@ router.get('/download/:id', async (req, res) => {
       });
     }
 
-    // Detect file extension or default to .docx
+    // 📍 Detect file extension (including .zip)
     let extension = '.docx';
-    if (fileUrl.includes('.xlsx')) extension = '.xlsx';
-    if (fileUrl.includes('.pdf')) extension = '.pdf';
-    if (fileUrl.includes('.ppt') || fileUrl.includes('.pptx')) extension = '.pptx';
+    if (fileUrl.includes('.zip')) extension = '.zip';
+    else if (fileUrl.includes('.xlsx')) extension = '.xlsx';
+    else if (fileUrl.includes('.pdf')) extension = '.pdf';
+    else if (fileUrl.includes('.ppt') || fileUrl.includes('.pptx')) extension = '.pptx';
 
     const safeFilename = resource.title.replace(/[^a-zA-Z0-9_\-]/g, '_');
 
     // Set binary content-disposition and mime headers
     res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}${extension}"`);
-    if (extension === '.docx') {
+    
+    if (extension === '.zip') {
+      res.setHeader('Content-Type', 'application/zip');
+    } else if (extension === '.docx') {
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
     } else if (extension === '.xlsx') {
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     } else if (extension === '.pdf') {
       res.setHeader('Content-Type', 'application/pdf');
+    } else if (extension === '.pptx') {
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
     }
 
     // Stream binary document directly through Express
