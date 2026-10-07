@@ -21,6 +21,11 @@ const getAccessToken = async (req, res, next) => {
     const consumerSecret = process.env.MPESA_CONSUMER_SECRET;
     const environment = process.env.MPESA_ENV || 'sandbox';
 
+    if (!consumerKey || !consumerSecret) {
+      console.error('Missing M-Pesa Consumer Key or Secret in Environment Variables');
+      return res.status(500).json({ error: 'M-Pesa API credentials not configured.' });
+    }
+
     const baseUrl =
       environment === 'production'
         ? 'https://api.safaricom.co.ke'
@@ -49,37 +54,47 @@ const getAccessToken = async (req, res, next) => {
 // =========================================================================
 router.post('/stkpush', getAccessToken, async (req, res) => {
   try {
-    const { phone, amount, accountReference, transactionDesc } = req.body;
+    const { phone, phoneNumber, amount, price, accountReference, transactionDesc } = req.body;
 
-    if (!phone || !amount) {
+    const rawPhone = phone || phoneNumber;
+    const rawAmount = amount || price || 50;
+
+    if (!rawPhone || !rawAmount) {
       return res.status(400).json({ error: 'Phone number and amount are required' });
     }
 
     // Format phone number to 254XXXXXXXXX
-    let formattedPhone = phone.toString().trim().replace(/[\s+-]/g, '');
+    let formattedPhone = String(rawPhone).trim().replace(/\D/g, '');
     if (formattedPhone.startsWith('0')) {
-      formattedPhone = `254${formattedPhone.slice(1)}`;
-    } else if (formattedPhone.startsWith('+254')) {
-      formattedPhone = formattedPhone.slice(1);
+      formattedPhone = '254' + formattedPhone.slice(1);
+    } else if (formattedPhone.startsWith('7') || formattedPhone.startsWith('1')) {
+      formattedPhone = '254' + formattedPhone;
     }
 
-    const shortCode = process.env.MPESA_BUSINESS_SHORTCODE;
+    const shortCode = process.env.MPESA_BUSINESS_SHORTCODE || process.env.MPESA_SHORTCODE || '174379';
     const passKey = process.env.MPESA_PASSKEY;
-    const timestamp = getTimestamp();
+    
+    if (!passKey) {
+      console.error('Missing MPESA_PASSKEY in Environment Variables');
+      return res.status(500).json({ error: 'M-Pesa Passkey is missing on backend server.' });
+    }
 
+    const timestamp = getTimestamp();
     const password = Buffer.from(`${shortCode}${passKey}${timestamp}`).toString('base64');
     const stkPushUrl = `${req.baseUrl}/mpesa/stkpush/v1/processrequest`;
+
+    const callbackUrl = process.env.MPESA_CALLBACK_URL || 'https://teacher-connect-backend.vercel.app/api/mpesa/callback';
 
     const payload = {
       BusinessShortCode: shortCode,
       Password: password,
       Timestamp: timestamp,
       TransactionType: 'CustomerPayBillOnline',
-      Amount: Math.round(Number(amount)),
+      Amount: Math.round(Number(rawAmount)),
       PartyA: formattedPhone,
       PartyB: shortCode,
       PhoneNumber: formattedPhone,
-      CallBackURL: process.env.MPESA_CALLBACK_URL,
+      CallBackURL: callbackUrl,
       AccountReference: accountReference || 'ResourceDownload',
       TransactionDesc: transactionDesc || 'Payment',
     };
@@ -123,8 +138,6 @@ router.post('/callback', (req, res) => {
       const phone = items.find((item) => item.Name === 'PhoneNumber')?.Value;
 
       console.log(`Payment Success: Receipt ${receipt}, Amount: KSh ${amountPaid}, Phone: ${phone}`);
-      
-      // TODO: Update transaction record / unlock resource in DB if storing payment status
     } else {
       console.log(`Payment Failed/Cancelled: ResultCode ${resultCode}`);
     }
@@ -133,7 +146,6 @@ router.post('/callback', (req, res) => {
     return res.status(200).json({ ResultCode: 0, ResultDesc: 'Accepted' });
   } catch (error) {
     console.error('Callback parsing error:', error);
-    // Return 200 to Safaricom even on error to prevent repeated serverless retries
     return res.status(200).json({ ResultCode: 0, ResultDesc: 'Accepted with errors' });
   }
 });
