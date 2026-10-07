@@ -8,7 +8,7 @@ const formatListing = (item) => {
 
   const phoneVal = item.phone || item.contactPhone || item.phoneNumber || '';
   const schoolVal = item.currentSchool || item.school || item.schoolName || '';
-  const nameVal = item.fullName || item.teacherName || item.userName || 'N/A';
+  const nameVal = item.fullName || item.teacherName || item.userName || (item.user && item.user.name) || 'N/A';
   const subjectsVal = item.subjectCombination || item.subjects || item.subject || 'N/A';
 
   // Extract TSC Number across possible property keys
@@ -37,21 +37,27 @@ const formatListing = (item) => {
     phone: phoneVal,
     phoneNumber: phoneVal,
     contactNumber: phoneVal,
+    contactPhone: phoneVal,
     tscNumber: tscVal,
     tscNo: tscVal,
     tsc: tscVal,
     currentSchool: schoolVal,
     school: schoolVal,
+    schoolName: schoolVal,
     subjectCombination: subjectsVal,
     subjects: subjectsVal,
     subject: subjectsVal,
     targetLocation: targetVal,
     targetCounty: item.targetCounty || targetVal,
     targetSubCounty: item.targetSubCounty || '',
-    county: item.county || item.currentCounty || 'N/A',
-    currentCounty: item.county || item.currentCounty || 'N/A',
+    county: item.county || item.currentCounty || item.currentLocation || 'N/A',
+    currentCounty: item.currentCounty || item.county || item.currentLocation || 'N/A',
+    currentLocation: item.currentLocation || item.currentCounty || item.county || 'N/A',
+    salary: item.salary || '',
+    isTscCompliant: item.isTscCompliant ?? false,
     type: categoryType,
     category: categoryType,
+    isPaid: item.isPaid ?? false,
     user: {
       name: nameVal,
       phone: phoneVal,
@@ -61,9 +67,9 @@ const formatListing = (item) => {
   };
 };
 
-// =================================================================
+// =========================================================================
 // 1. GET ALL LISTINGS (WITH PAGINATION, CATEGORY FILTER, ADMIN BYPASS)
-// =================================================================
+// =========================================================================
 router.get('/', async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -129,9 +135,9 @@ router.get('/', async (req, res) => {
   }
 });
 
-// =================================================================
+// =========================================================================
 // 2. GET LISTINGS BY TAB TYPE (/api/listings/type/:type)
-// =================================================================
+// =========================================================================
 router.get('/type/:type', async (req, res) => {
   try {
     const requestedType = req.params.type;
@@ -168,13 +174,13 @@ router.get('/type/:type', async (req, res) => {
     return res.status(200).json(formatted);
   } catch (err) {
     console.error('Error fetching listings by type:', err);
-    return res.status(500).json({ error: err.message || 'Failed to fetch listings by type' });
+    return res.status(500).json({ error: err.message || 'Failed to fetch listings' });
   }
 });
 
-// =================================================================
+// =========================================================================
 // 3. GET SINGLE LISTING BY ID (/api/listings/:id)
-// =================================================================
+// =========================================================================
 router.get('/:id', async (req, res) => {
   try {
     const listing = await Listing.findById(req.params.id);
@@ -188,9 +194,9 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// =================================================================
+// =========================================================================
 // 4. CREATE NEW LISTING (/api/listings)
-// =================================================================
+// =========================================================================
 router.post('/', async (req, res) => {
   try {
     const body = req.body;
@@ -199,15 +205,25 @@ router.post('/', async (req, res) => {
       ...body,
       fullName: body.fullName || body.teacherName || 'Teacher',
       teacherName: body.teacherName || body.fullName || 'Teacher',
-      phone: body.phone || body.phoneNumber || '',
-      phoneNumber: body.phoneNumber || body.phone || '',
-      subjectCombination: body.subjectCombination || body.subjects || '',
-      county: body.county || body.currentCounty || '',
-      currentCounty: body.currentCounty || body.county || '',
+      phone: body.phone || body.contactPhone || body.phoneNumber || '',
+      phoneNumber: body.phoneNumber || body.phone || body.contactPhone || '',
+      contactPhone: body.contactPhone || body.phone || body.phoneNumber || '',
+      subjectCombination: body.subjectCombination || body.subject || body.subjects || '',
+      subject: body.subject || body.subjectCombination || body.subjects || '',
+      county: body.county || body.currentCounty || body.currentLocation || '',
+      currentCounty: body.currentCounty || body.county || body.currentLocation || '',
+      currentLocation: body.currentLocation || body.currentCounty || body.county || '',
       targetCounty: body.targetCounty || body.desiredCounty || '',
       targetSubCounty: body.targetSubCounty || '',
-      currentSchool: body.currentSchool || body.school || '',
+      currentSchool: body.currentSchool || body.school || body.schoolName || '',
+      schoolName: body.schoolName || body.currentSchool || body.school || '',
+      
+      // Captures tscNumber properly across all incoming payloads
       tscNumber: body.tscNumber || body.tscNo || body.tsc || body.tsc_number || (body.user && body.user.tscNumber) || 'N/A',
+      tscNo: body.tscNo || body.tscNumber || body.tsc || 'N/A',
+      
+      salary: body.salary || '',
+      isTscCompliant: body.isTscCompliant ?? false,
       type: body.type || body.category || body.listingCategory || 'TSC Swap',
       category: body.category || body.type || body.listingCategory || 'TSC Swap',
       status: 'pending',
@@ -225,13 +241,13 @@ router.post('/', async (req, res) => {
     });
   } catch (err) {
     console.error('Error creating listing:', err);
-    return res.status(500).json({ success: false, message: err.message });
+    return res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// =================================================================
+// =========================================================================
 // 5. UPDATE LISTING (/api/listings/:id)
-// =================================================================
+// =========================================================================
 router.put('/:id', async (req, res) => {
   try {
     const updatedListing = await Listing.findByIdAndUpdate(
@@ -251,7 +267,7 @@ router.put('/:id', async (req, res) => {
     });
   } catch (err) {
     console.error('Error updating listing:', err);
-    return res.status(500).json({ success: false, message: err.message });
+    return res.status(500).json({ success: false, error: err.message });
   }
 });
 
@@ -274,13 +290,13 @@ router.patch('/:id', async (req, res) => {
     });
   } catch (err) {
     console.error('Error updating listing:', err);
-    return res.status(500).json({ success: false, message: err.message });
+    return res.status(500).json({ success: false, error: err.message });
   }
 });
 
-// =================================================================
+// =========================================================================
 // 6. DELETE LISTING (/api/listings/:id)
-// =================================================================
+// =========================================================================
 router.delete('/:id', async (req, res) => {
   try {
     const deletedListing = await Listing.findByIdAndDelete(req.params.id);
@@ -295,7 +311,7 @@ router.delete('/:id', async (req, res) => {
     });
   } catch (err) {
     console.error('Error deleting listing:', err);
-    return res.status(500).json({ success: false, message: err.message });
+    return res.status(500).json({ success: false, error: err.message });
   }
 });
 
