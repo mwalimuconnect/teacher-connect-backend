@@ -12,7 +12,7 @@ const sampleResources = [
     subject: 'English',
     form: 'Form 4',
     fileUrl: 'https://example.com/schemes.docx',
-    price: 0,
+    price: 50,
   },
   {
     id: '2',
@@ -21,16 +21,23 @@ const sampleResources = [
     subject: 'Literature',
     form: 'Form 3',
     fileUrl: 'https://example.com/lesson_plan.docx',
-    price: 0,
+    price: 50,
   },
 ];
 
-// Helper to format resource IDs properly for Flutter
+// Helper to format resource items properly for Flutter UI
 const formatResource = (item) => {
   const doc = item._doc || item;
+
+  // Extract or assign price (defaults to 50 if missing or 0)
+  const parsedPrice = parseFloat(doc.price);
+  const finalPrice = !isNaN(parsedPrice) && parsedPrice > 0 ? parsedPrice : 50;
+
   return {
     ...doc,
     id: doc._id ? doc._id.toString() : doc.id,
+    _id: doc._id ? doc._id.toString() : doc.id,
+    price: finalPrice,
   };
 };
 
@@ -57,8 +64,8 @@ router.get('/', async (req, res) => {
     let resources = await Resource.find(query).sort({ createdAt: -1 });
 
     // If MongoDB returns no items and no search/category filter was passed, return sample fallbacks
-    if (resources.length === 0 && !search && (!category || category.toLowerCase() === 'all')) {
-      return res.status(200).json(sampleResources);
+    if (resources.length === 0 && (!category || category.toLowerCase() === 'all')) {
+      return res.status(200).json(sampleResources.map(formatResource));
     }
 
     const formatted = resources.map(formatResource);
@@ -151,13 +158,16 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Title, Category, and File URL are required.' });
     }
 
+    const parsedPrice = parseFloat(price);
+    const finalPrice = !isNaN(parsedPrice) && parsedPrice > 0 ? parsedPrice : 50;
+
     const newResource = new Resource({
       title,
       category,
       subject: subject || 'General',
       form: form || 'General',
       fileUrl,
-      price: price !== undefined ? price : 0,
+      price: finalPrice,
       description: description || '',
     });
 
