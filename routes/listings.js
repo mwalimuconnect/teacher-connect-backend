@@ -207,7 +207,7 @@ router.post('/', async (req, res) => {
       targetCounty: body.targetCounty || body.desiredCounty || '',
       targetSubCounty: body.targetSubCounty || '',
       currentSchool: body.currentSchool || body.school || '',
-      tscNumber: body.tscNumber || body.tscNo || body.tsc || '',
+      tscNumber: body.tscNumber || body.tscNo || body.tsc || body.tsc_number || (body.user && body.user.tscNumber) || 'N/A',
       type: body.type || body.category || body.listingCategory || 'TSC Swap',
       category: body.category || body.type || body.listingCategory || 'TSC Swap',
       status: 'pending',
