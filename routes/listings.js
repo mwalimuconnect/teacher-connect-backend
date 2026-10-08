@@ -13,10 +13,12 @@ const formatListing = (item) => {
   const subjectsVal = item.subjectCombination || item.subjects || item.subject || '';
 
   // Safe TSC Number Extraction (Handles Strings and Numbers)
-  let tscVal = item.tscNumber || item.tscNo || item.tsc || item.tsc_number || (item.user && item.user.tscNumber) || null;
-  if (tscVal !== null && tscVal !== undefined) {
-    tscVal = String(tscVal).trim();
+  let rawTsc = item.tscNumber || item.tscNo || item.tsc || item.tsc_number || (item.user && item.user.tscNumber) || '';
+  let tscVal = '';
+  if (rawTsc !== null && rawTsc !== undefined) {
+    tscVal = String(rawTsc).trim();
   }
+  const displayTsc = tscVal.length > 0 ? tscVal : 'N/A';
 
   // Extract target location string
   let targetVal = item.targetLocation || '';
@@ -42,9 +44,9 @@ const formatListing = (item) => {
     phone: phoneVal,
     phoneNumber: phoneVal,
     contactPhone: phoneVal,
-    tscNumber: tscVal,
-    tscNo: tscVal,
-    tsc: tscVal,
+    tscNumber: displayTsc,
+    tscNo: displayTsc,
+    tsc: displayTsc,
     currentSchool: schoolVal,
     school: schoolVal,
     schoolName: schoolVal,
@@ -58,7 +60,7 @@ const formatListing = (item) => {
     currentCounty: item.currentCounty || item.county || item.currentLocation || 'N/A',
     currentLocation: item.currentLocation || item.currentCounty || item.county || 'N/A',
     salary: item.salary || '',
-    isTscCompliant: item.isTscCompliant === true || item.tscCompliant === true,
+    isTscCompliant: item.isTscCompliant === true || item.tscCompliant === true || (tscVal.length > 0 && tscVal !== 'N/A'),
     type: categoryType,
     category: categoryType,
     isPaid: item.isPaid === true,
@@ -68,7 +70,7 @@ const formatListing = (item) => {
       name: nameVal,
       phone: phoneVal,
       school: schoolVal,
-      tscNumber: tscVal,
+      tscNumber: displayTsc,
     },
   };
 };
@@ -79,13 +81,13 @@ const formatListing = (item) => {
 router.get('/', async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 100; // Default higher limit for admin tables
+    const limit = parseInt(req.query.limit) || 100;
     const skip = (page - 1) * limit;
     const isAdmin = req.query.isAdmin === 'true';
 
     let filter = {};
 
-    // Apply approval filter for public member feeds unless client is admin
+    // Apply approval filter for public member requests unless client is admin
     if (!isAdmin) {
       filter.$or = [
         { status: { $regex: /^approved$/i } },
@@ -206,8 +208,7 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const body = req.body;
-
-    const tscCaptured = body.tscNumber || body.tscNo || body.tsc || body.tsc_number || null;
+    const tscCaptured = body.tscNumber || body.tscNo || body.tsc || body.tsc_number || '';
 
     const listingData = {
       ...body,
@@ -218,6 +219,7 @@ router.post('/', async (req, res) => {
       contactPhone: body.contactPhone || body.phone || body.phoneNumber || '',
       subjectCombination: body.subjectCombination || body.subject || body.subjects || '',
       subject: body.subject || body.subjectCombination || body.subjects || '',
+      subjects: body.subjects || body.subjectCombination || body.subject || '',
       county: body.county || body.currentCounty || body.currentLocation || '',
       currentCounty: body.currentCounty || body.county || body.currentLocation || '',
       currentLocation: body.currentLocation || body.currentCounty || body.county || '',
@@ -227,8 +229,9 @@ router.post('/', async (req, res) => {
       schoolName: body.schoolName || body.currentSchool || body.school || '',
       tscNumber: tscCaptured,
       tscNo: tscCaptured,
+      tsc: tscCaptured,
       salary: body.salary || '',
-      isTscCompliant: body.isTscCompliant === true || body.tscCompliant === true,
+      isTscCompliant: body.isTscCompliant === true || body.tscCompliant === true || (tscCaptured.trim().length > 0),
       type: body.type || body.category || body.listingCategory || 'TSC Swap',
       category: body.category || body.type || body.listingCategory || 'TSC Swap',
       status: body.status || 'pending',
@@ -257,7 +260,6 @@ const handleUpdate = async (req, res) => {
   try {
     const updateData = { ...req.body };
 
-    // Explicitly sync approval state if status or isApproved passed
     if (updateData.status === 'approved' || updateData.isApproved === true) {
       updateData.status = 'approved';
       updateData.isApproved = true;
