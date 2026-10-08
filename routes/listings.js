@@ -4,15 +4,19 @@ const Listing = require('../models/Listing');
 
 // Helper to format listing data consistently for Flutter UI
 const formatListing = (item) => {
+  if (!item) return null;
   const doc = item._doc || item;
 
   const phoneVal = item.phone || item.contactPhone || item.phoneNumber || '';
   const schoolVal = item.currentSchool || item.school || item.schoolName || '';
-  const nameVal = item.fullName || item.teacherName || item.userName || (item.user && item.user.name) || 'N/A';
-  const subjectsVal = item.subjectCombination || item.subjects || item.subject || 'N/A';
+  const nameVal = item.fullName || item.teacherName || item.userName || (item.user && item.user.name) || 'Teacher';
+  const subjectsVal = item.subjectCombination || item.subjects || item.subject || '';
 
-  // Extract TSC Number across possible property keys
-  const tscVal = item.tscNumber || item.tscNo || item.tsc || (item.user && item.user.tscNumber) || 'N/A';
+  // Safe TSC Number Extraction (Handles Strings and Numbers)
+  let tscVal = item.tscNumber || item.tscNo || item.tsc || item.tsc_number || (item.user && item.user.tscNumber) || null;
+  if (tscVal !== null && tscVal !== undefined) {
+    tscVal = String(tscVal).trim();
+  }
 
   // Extract target location string
   let targetVal = item.targetLocation || '';
@@ -27,16 +31,16 @@ const formatListing = (item) => {
   }
 
   const categoryType = item.type || item.category || 'TSC Swap';
+  const approvedStatus = item.isApproved === true || item.status === 'approved';
 
   return {
     ...doc,
-    _id: item._id,
-    id: item._id,
+    _id: String(item._id || item.id || ''),
+    id: String(item._id || item.id || ''),
     teacherName: nameVal,
     fullName: nameVal,
     phone: phoneVal,
     phoneNumber: phoneVal,
-    contactNumber: phoneVal,
     contactPhone: phoneVal,
     tscNumber: tscVal,
     tscNo: tscVal,
@@ -54,10 +58,12 @@ const formatListing = (item) => {
     currentCounty: item.currentCounty || item.county || item.currentLocation || 'N/A',
     currentLocation: item.currentLocation || item.currentCounty || item.county || 'N/A',
     salary: item.salary || '',
-    isTscCompliant: item.isTscCompliant ?? false,
+    isTscCompliant: item.isTscCompliant === true || item.tscCompliant === true,
     type: categoryType,
     category: categoryType,
-    isPaid: item.isPaid ?? false,
+    isPaid: item.isPaid === true,
+    isApproved: approvedStatus,
+    status: approvedStatus ? 'approved' : (item.status || 'pending'),
     user: {
       name: nameVal,
       phone: phoneVal,
@@ -73,7 +79,7 @@ const formatListing = (item) => {
 router.get('/', async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 15;
+    const limit = parseInt(req.query.limit) || 100; // Default higher limit for admin tables
     const skip = (page - 1) * limit;
     const isAdmin = req.query.isAdmin === 'true';
 
@@ -96,9 +102,9 @@ router.get('/', async (req, res) => {
       if (/swap/i.test(queryType)) {
         categoryFilter = [{ type: 'TSC Swap' }, { category: 'TSC Swap' }];
       } else if (/vacancy|job/i.test(queryType) && !/seeker|seeking/i.test(queryType)) {
-        categoryFilter = [{ type: 'BOM Vacancy' }, { category: 'BOM Vacancy' }];
+        categoryFilter = [{ type: 'BOM Vacancy' }, { category: 'BOM Vacancy' }, { type: 'BOM Jobs' }, { category: 'BOM Jobs' }];
       } else if (/seeker|seeking/i.test(queryType)) {
-        categoryFilter = [{ type: 'Seeking BOM Job' }, { category: 'Seeking BOM Job' }];
+        categoryFilter = [{ type: 'Seeking BOM Job' }, { category: 'Seeking BOM Job' }, { type: 'Seeking BOM' }, { category: 'Seeking BOM' }];
       } else {
         const regex = new RegExp(queryType, 'i');
         categoryFilter = [{ type: regex }, { category: regex }];
@@ -131,7 +137,7 @@ router.get('/', async (req, res) => {
     });
   } catch (err) {
     console.error('Error fetching listings:', err);
-    return res.status(500).json({ error: err.message || 'Failed to fetch listings' });
+    return res.status(500).json({ success: false, error: err.message || 'Failed to fetch listings' });
   }
 });
 
@@ -155,9 +161,9 @@ router.get('/type/:type', async (req, res) => {
       if (/swap/i.test(requestedType)) {
         categoryFilter = [{ type: 'TSC Swap' }, { category: 'TSC Swap' }];
       } else if (/seeker|seeking/i.test(requestedType)) {
-        categoryFilter = [{ type: 'Seeking BOM Job' }, { category: 'Seeking BOM Job' }];
+        categoryFilter = [{ type: 'Seeking BOM Job' }, { category: 'Seeking BOM Job' }, { type: 'Seeking BOM' }, { category: 'Seeking BOM' }];
       } else if (/vacancy|job/i.test(requestedType)) {
-        categoryFilter = [{ type: 'BOM Vacancy' }, { category: 'BOM Vacancy' }];
+        categoryFilter = [{ type: 'BOM Vacancy' }, { category: 'BOM Vacancy' }, { type: 'BOM Jobs' }, { category: 'BOM Jobs' }];
       } else {
         const regex = new RegExp(requestedType, 'i');
         categoryFilter = [{ type: regex }, { category: regex }];
@@ -174,7 +180,7 @@ router.get('/type/:type', async (req, res) => {
     return res.status(200).json(formatted);
   } catch (err) {
     console.error('Error fetching listings by type:', err);
-    return res.status(500).json({ error: err.message || 'Failed to fetch listings' });
+    return res.status(500).json({ success: false, error: err.message || 'Failed to fetch listings' });
   }
 });
 
@@ -201,6 +207,8 @@ router.post('/', async (req, res) => {
   try {
     const body = req.body;
 
+    const tscCaptured = body.tscNumber || body.tscNo || body.tsc || body.tsc_number || null;
+
     const listingData = {
       ...body,
       fullName: body.fullName || body.teacherName || 'Teacher',
@@ -217,17 +225,14 @@ router.post('/', async (req, res) => {
       targetSubCounty: body.targetSubCounty || '',
       currentSchool: body.currentSchool || body.school || body.schoolName || '',
       schoolName: body.schoolName || body.currentSchool || body.school || '',
-      
-      // Captures tscNumber properly across all incoming payloads
-      tscNumber: body.tscNumber || body.tscNo || body.tsc || body.tsc_number || (body.user && body.user.tscNumber) || 'N/A',
-      tscNo: body.tscNo || body.tscNumber || body.tsc || 'N/A',
-      
+      tscNumber: tscCaptured,
+      tscNo: tscCaptured,
       salary: body.salary || '',
-      isTscCompliant: body.isTscCompliant ?? false,
+      isTscCompliant: body.isTscCompliant === true || body.tscCompliant === true,
       type: body.type || body.category || body.listingCategory || 'TSC Swap',
       category: body.category || body.type || body.listingCategory || 'TSC Swap',
-      status: 'pending',
-      isApproved: false,
+      status: body.status || 'pending',
+      isApproved: body.isApproved === true || body.status === 'approved',
       createdAt: new Date(),
     };
 
@@ -248,11 +253,19 @@ router.post('/', async (req, res) => {
 // =========================================================================
 // 5. UPDATE LISTING (/api/listings/:id)
 // =========================================================================
-router.put('/:id', async (req, res) => {
+const handleUpdate = async (req, res) => {
   try {
+    const updateData = { ...req.body };
+
+    // Explicitly sync approval state if status or isApproved passed
+    if (updateData.status === 'approved' || updateData.isApproved === true) {
+      updateData.status = 'approved';
+      updateData.isApproved = true;
+    }
+
     const updatedListing = await Listing.findByIdAndUpdate(
       req.params.id,
-      { $set: req.body },
+      { $set: updateData },
       { new: true, runValidators: false }
     );
 
@@ -269,30 +282,10 @@ router.put('/:id', async (req, res) => {
     console.error('Error updating listing:', err);
     return res.status(500).json({ success: false, error: err.message });
   }
-});
+};
 
-router.patch('/:id', async (req, res) => {
-  try {
-    const updatedListing = await Listing.findByIdAndUpdate(
-      req.params.id,
-      { $set: req.body },
-      { new: true, runValidators: false }
-    );
-
-    if (!updatedListing) {
-      return res.status(404).json({ success: false, message: 'Listing not found' });
-    }
-
-    return res.status(200).json({
-      success: true,
-      message: 'Listing updated successfully',
-      data: formatListing(updatedListing),
-    });
-  } catch (err) {
-    console.error('Error updating listing:', err);
-    return res.status(500).json({ success: false, error: err.message });
-  }
-});
+router.put('/:id', handleUpdate);
+router.patch('/:id', handleUpdate);
 
 // =========================================================================
 // 6. DELETE LISTING (/api/listings/:id)
