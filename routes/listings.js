@@ -5,40 +5,53 @@ const Listing = require('../models/Listing');
 // Helper to format listing data consistently for Flutter UI
 const formatListing = (item) => {
   if (!item) return null;
+  
+  // Extract raw Mongoose document properties if wrapped in _doc
   const doc = item._doc || item;
 
-  const phoneVal = item.phone || item.contactPhone || item.phoneNumber || '';
-  const schoolVal = item.currentSchool || item.school || item.schoolName || '';
-  const nameVal = item.fullName || item.teacherName || item.userName || (item.user && item.user.name) || 'Teacher';
-  const subjectsVal = item.subjectCombination || item.subjects || item.subject || '';
+  const phoneVal = doc.phone || doc.contactPhone || doc.phoneNumber || doc.user?.phone || '';
+  const schoolVal = doc.currentSchool || doc.school || doc.schoolName || doc.user?.school || '';
+  const nameVal = doc.fullName || doc.teacherName || doc.userName || doc.user?.name || '';
+  const subjectsVal = doc.subjectCombination || doc.subjects || doc.subject || '';
 
-  // Safe TSC Number Extraction (Handles Strings and Numbers)
-  let rawTsc = item.tscNumber || item.tscNo || item.tsc || item.tsc_number || (item.user && item.user.tscNumber) || '';
+  // Safe TSC Number Extraction (Checks top level, doc level, and nested user level)
+  let rawTsc = doc.tscNumber || 
+               doc.tscNo || 
+               doc.tsc || 
+               doc.tsc_number || 
+               doc.user?.tscNumber || 
+               doc.user?.tscNo || 
+               item.tscNumber || 
+               item.tscNo;
+
   let tscVal = '';
   if (rawTsc !== null && rawTsc !== undefined) {
     tscVal = String(rawTsc).trim();
   }
-  const displayTsc = tscVal.length > 0 ? tscVal : 'N/A';
+
+  const displayTsc = (tscVal.length > 0 && tscVal.toUpperCase() !== 'UNDEFINED' && tscVal.toUpperCase() !== 'NULL')
+    ? tscVal 
+    : 'N/A';
 
   // Extract target location string
-  let targetVal = item.targetLocation || '';
+  let targetVal = doc.targetLocation || '';
   if (!targetVal) {
-    if (item.targetCounty && item.targetSubCounty) {
-      targetVal = `${item.targetCounty} (${item.targetSubCounty})`;
-    } else if (item.targetCounty) {
-      targetVal = item.targetCounty;
-    } else if (item.targetSubCounty) {
-      targetVal = item.targetSubCounty;
+    if (doc.targetCounty && doc.targetSubCounty) {
+      targetVal = `${doc.targetCounty} (${doc.targetSubCounty})`;
+    } else if (doc.targetCounty) {
+      targetVal = doc.targetCounty;
+    } else if (doc.targetSubCounty) {
+      targetVal = doc.targetSubCounty;
     }
   }
 
-  const categoryType = item.type || item.category || 'TSC Swap';
-  const approvedStatus = item.isApproved === true || item.status === 'approved';
+  const categoryType = doc.type || doc.category || 'TSC Swap';
+  const approvedStatus = doc.isApproved === true || doc.status === 'approved';
 
   return {
     ...doc,
-    _id: String(item._id || item.id || ''),
-    id: String(item._id || item.id || ''),
+    _id: String(doc._id || doc.id || ''),
+    id: String(doc._id || doc.id || ''),
     teacherName: nameVal,
     fullName: nameVal,
     phone: phoneVal,
@@ -47,6 +60,7 @@ const formatListing = (item) => {
     tscNumber: displayTsc,
     tscNo: displayTsc,
     tsc: displayTsc,
+    isTscCompliant: displayTsc !== 'N/A',
     currentSchool: schoolVal,
     school: schoolVal,
     schoolName: schoolVal,
@@ -54,30 +68,29 @@ const formatListing = (item) => {
     subjects: subjectsVal,
     subject: subjectsVal,
     targetLocation: targetVal,
-    targetCounty: item.targetCounty || targetVal,
-    targetSubCounty: item.targetSubCounty || '',
-    county: item.county || item.currentCounty || item.currentLocation || 'N/A',
-    currentCounty: item.currentCounty || item.county || item.currentLocation || 'N/A',
-    currentLocation: item.currentLocation || item.currentCounty || item.county || 'N/A',
-    salary: item.salary || '',
-    isTscCompliant: item.isTscCompliant === true || item.tscCompliant === true || (tscVal.length > 0 && tscVal !== 'N/A'),
+    targetCounty: doc.targetCounty || targetVal,
+    targetSubCounty: doc.targetSubCounty || '',
+    county: doc.county || doc.currentCounty || doc.currentLocation || '',
+    currentCounty: doc.currentCounty || doc.county || doc.currentLocation || '',
+    currentLocation: doc.currentLocation || doc.currentCounty || doc.county || '',
+    salary: doc.salary || '',
     type: categoryType,
     category: categoryType,
-    isPaid: item.isPaid === true,
+    isPaid: doc.isPaid === true,
     isApproved: approvedStatus,
-    status: approvedStatus ? 'approved' : (item.status || 'pending'),
+    status: approvedStatus ? 'approved' : (doc.status || 'pending'),
     user: {
       name: nameVal,
       phone: phoneVal,
       school: schoolVal,
       tscNumber: displayTsc,
-    },
+    }
   };
 };
 
-// =========================================================================
+// ============================================================================
 // 1. GET ALL LISTINGS (WITH PAGINATION, CATEGORY FILTER, ADMIN BYPASS)
-// =========================================================================
+// ============================================================================
 router.get('/', async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -92,7 +105,7 @@ router.get('/', async (req, res) => {
       filter.$or = [
         { status: { $regex: /^approved$/i } },
         { status: { $exists: false } },
-        { isApproved: true },
+        { isApproved: true }
       ];
     }
 
@@ -104,9 +117,9 @@ router.get('/', async (req, res) => {
       if (/swap/i.test(queryType)) {
         categoryFilter = [{ type: 'TSC Swap' }, { category: 'TSC Swap' }];
       } else if (/vacancy|job/i.test(queryType) && !/seeker|seeking/i.test(queryType)) {
-        categoryFilter = [{ type: 'BOM Vacancy' }, { category: 'BOM Vacancy' }, { type: 'BOM Jobs' }, { category: 'BOM Jobs' }];
+        categoryFilter = [{ type: 'BOM Vacancy' }, { category: 'BOM Vacancy' }];
       } else if (/seeker|seeking/i.test(queryType)) {
-        categoryFilter = [{ type: 'Seeking BOM Job' }, { category: 'Seeking BOM Job' }, { type: 'Seeking BOM' }, { category: 'Seeking BOM' }];
+        categoryFilter = [{ type: 'Seeking BOM Job' }, { category: 'Seeking BOM Job' }];
       } else {
         const regex = new RegExp(queryType, 'i');
         categoryFilter = [{ type: regex }, { category: regex }];
@@ -114,7 +127,7 @@ router.get('/', async (req, res) => {
 
       if (filter.$or) {
         filter = {
-          $and: [{$or: filter.$or }, {$or: categoryFilter }],
+          $and: [{$or: filter.$or }, {$or: categoryFilter }]
         };
       } else {
         filter.$or = categoryFilter;
@@ -139,13 +152,13 @@ router.get('/', async (req, res) => {
     });
   } catch (err) {
     console.error('Error fetching listings:', err);
-    return res.status(500).json({ success: false, error: err.message || 'Failed to fetch listings' });
+    return res.status(500).json({ success: false, error: err.message || 'Server Error' });
   }
 });
 
-// =========================================================================
+// ============================================================================
 // 2. GET LISTINGS BY TAB TYPE (/api/listings/type/:type)
-// =========================================================================
+// ============================================================================
 router.get('/type/:type', async (req, res) => {
   try {
     const requestedType = req.params.type;
@@ -163,9 +176,9 @@ router.get('/type/:type', async (req, res) => {
       if (/swap/i.test(requestedType)) {
         categoryFilter = [{ type: 'TSC Swap' }, { category: 'TSC Swap' }];
       } else if (/seeker|seeking/i.test(requestedType)) {
-        categoryFilter = [{ type: 'Seeking BOM Job' }, { category: 'Seeking BOM Job' }, { type: 'Seeking BOM' }, { category: 'Seeking BOM' }];
+        categoryFilter = [{ type: 'Seeking BOM Job' }, { category: 'Seeking BOM Job' }];
       } else if (/vacancy|job/i.test(requestedType)) {
-        categoryFilter = [{ type: 'BOM Vacancy' }, { category: 'BOM Vacancy' }, { type: 'BOM Jobs' }, { category: 'BOM Jobs' }];
+        categoryFilter = [{ type: 'BOM Vacancy' }, { category: 'BOM Vacancy' }];
       } else {
         const regex = new RegExp(requestedType, 'i');
         categoryFilter = [{ type: regex }, { category: regex }];
@@ -182,13 +195,13 @@ router.get('/type/:type', async (req, res) => {
     return res.status(200).json(formatted);
   } catch (err) {
     console.error('Error fetching listings by type:', err);
-    return res.status(500).json({ success: false, error: err.message || 'Failed to fetch listings' });
+    return res.status(500).json({ success: false, error: err.message || 'Server Error' });
   }
 });
 
-// =========================================================================
+// ============================================================================
 // 3. GET SINGLE LISTING BY ID (/api/listings/:id)
-// =========================================================================
+// ============================================================================
 router.get('/:id', async (req, res) => {
   try {
     const listing = await Listing.findById(req.params.id);
@@ -198,17 +211,17 @@ router.get('/:id', async (req, res) => {
     return res.status(200).json(formatListing(listing));
   } catch (err) {
     console.error('Error fetching listing:', err);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({ success: false, error: err.message || 'Server Error' });
   }
 });
 
-// =========================================================================
+// ============================================================================
 // 4. CREATE NEW LISTING (/api/listings)
-// =========================================================================
+// ============================================================================
 router.post('/', async (req, res) => {
   try {
     const body = req.body;
-    const tscCaptured = body.tscNumber || body.tscNo || body.tsc || body.tsc_number || '';
+    const tscCaptured = body.tscNumber || body.tscNo || body.tsc || body.tsc_number;
 
     const listingData = {
       ...body,
@@ -222,7 +235,7 @@ router.post('/', async (req, res) => {
       subjects: body.subjects || body.subjectCombination || body.subject || '',
       county: body.county || body.currentCounty || body.currentLocation || '',
       currentCounty: body.currentCounty || body.county || body.currentLocation || '',
-      currentLocation: body.currentLocation || body.currentCounty || body.county || '',
+      currentLocation: body.currentLocation || body.county || body.currentCounty || '',
       targetCounty: body.targetCounty || body.desiredCounty || '',
       targetSubCounty: body.targetSubCounty || '',
       currentSchool: body.currentSchool || body.school || body.schoolName || '',
@@ -231,7 +244,7 @@ router.post('/', async (req, res) => {
       tscNo: tscCaptured,
       tsc: tscCaptured,
       salary: body.salary || '',
-      isTscCompliant: body.isTscCompliant === true || body.tscCompliant === true || (tscCaptured.trim().length > 0),
+      isTscCompliant: body.isTscCompliant === true || body.tscCompliant === true,
       type: body.type || body.category || body.listingCategory || 'TSC Swap',
       category: body.category || body.type || body.listingCategory || 'TSC Swap',
       status: body.status || 'pending',
@@ -249,13 +262,13 @@ router.post('/', async (req, res) => {
     });
   } catch (err) {
     console.error('Error creating listing:', err);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({ success: false, error: err.message || 'Server Error' });
   }
 });
 
-// =========================================================================
+// ============================================================================
 // 5. UPDATE LISTING (/api/listings/:id)
-// =========================================================================
+// ============================================================================
 const handleUpdate = async (req, res) => {
   try {
     const updateData = { ...req.body };
@@ -282,16 +295,16 @@ const handleUpdate = async (req, res) => {
     });
   } catch (err) {
     console.error('Error updating listing:', err);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({ success: false, error: err.message || 'Server Error' });
   }
 };
 
 router.put('/:id', handleUpdate);
 router.patch('/:id', handleUpdate);
 
-// =========================================================================
+// ============================================================================
 // 6. DELETE LISTING (/api/listings/:id)
-// =========================================================================
+// ============================================================================
 router.delete('/:id', async (req, res) => {
   try {
     const deletedListing = await Listing.findByIdAndDelete(req.params.id);
@@ -306,7 +319,7 @@ router.delete('/:id', async (req, res) => {
     });
   } catch (err) {
     console.error('Error deleting listing:', err);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({ success: false, error: err.message || 'Server Error' });
   }
 });
 
