@@ -5,33 +5,44 @@ const Listing = require('../models/Listing');
 // Helper to format listing data consistently for Flutter UI
 const formatListing = (item) => {
   if (!item) return null;
-  
-  // Extract raw Mongoose document properties if wrapped in _doc
+
   const doc = item._doc || item;
 
-  const phoneVal = doc.phone || doc.contactPhone || doc.phoneNumber || doc.user?.phone || '';
-  const schoolVal = doc.currentSchool || doc.school || doc.schoolName || doc.user?.school || '';
-  const nameVal = doc.fullName || doc.teacherName || doc.userName || doc.user?.name || '';
-  const subjectsVal = doc.subjectCombination || doc.subjects || doc.subject || '';
+  // Extract populated user object safely (handles 'user' or 'userId' schema references)
+  const userObj = (doc.user && typeof doc.user === 'object') ? doc.user :
+                  (doc.userId && typeof doc.userId === 'object') ? doc.userId : {};
 
-  // Safe TSC Number Extraction (Checks top level, doc level, and nested user level)
-  let rawTsc = doc.tscNumber || 
-               doc.tscNo || 
-               doc.tsc || 
-               doc.tsc_number || 
-               doc.user?.tscNumber || 
-               doc.user?.tscNo || 
-               item.tscNumber || 
-               item.tscNo;
+  const phoneVal = doc.phone || doc.contactPhone || doc.phoneNumber || userObj.phone || userObj.contactPhone || '';
+  const schoolVal = doc.schoolName || doc.currentSchool || doc.school || userObj.school || userObj.currentSchool || '';
+  const nameVal = doc.fullName || doc.teacherName || doc.userName || userObj.fullName || userObj.name || userObj.userName || '';
+  const subjectsVal = doc.subjectCombination || doc.subjects || doc.subject || userObj.subject || '';
+
+  // Safe TSC Number Extraction (Checks top-level listing fields & populated user profile)
+  let rawTsc =
+    doc.tscNumber ||
+    doc.tscNo ||
+    doc.tsc ||
+    doc.tsc_number ||
+    doc.tsc_no ||
+    userObj.tscNumber ||
+    userObj.tscNo ||
+    userObj.tsc ||
+    userObj.tsc_number ||
+    userObj.tsc_no ||
+    item.tscNumber ||
+    item.tscNo;
 
   let tscVal = '';
   if (rawTsc !== null && rawTsc !== undefined) {
     tscVal = String(rawTsc).trim();
   }
 
-  const displayTsc = (tscVal.length > 0 && tscVal.toUpperCase() !== 'UNDEFINED' && tscVal.toUpperCase() !== 'NULL')
-    ? tscVal 
-    : 'N/A';
+  const displayTsc =
+    tscVal.length > 0 &&
+    tscVal.toUpperCase() !== 'UNDEFINED' &&
+    tscVal.toUpperCase() !== 'NULL'
+      ? tscVal
+      : 'N/A';
 
   // Extract target location string
   let targetVal = doc.targetLocation || '';
@@ -84,13 +95,13 @@ const formatListing = (item) => {
       phone: phoneVal,
       school: schoolVal,
       tscNumber: displayTsc,
-    }
+    },
   };
 };
 
-// ============================================================================
+// =========================================================================
 // 1. GET ALL LISTINGS (WITH PAGINATION, CATEGORY FILTER, ADMIN BYPASS)
-// ============================================================================
+// =========================================================================
 router.get('/', async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -134,7 +145,10 @@ router.get('/', async (req, res) => {
       }
     }
 
+    // Populate user references so user profile TSC numbers are retrieved
     const listings = await Listing.find(filter)
+      .populate('user', 'fullName name phone tscNumber tscNo tsc school')
+      .populate('userId', 'fullName name phone tscNumber tscNo tsc school')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
@@ -156,9 +170,9 @@ router.get('/', async (req, res) => {
   }
 });
 
-// ============================================================================
+// =========================================================================
 // 2. GET LISTINGS BY TAB TYPE (/api/listings/type/:type)
-// ============================================================================
+// =========================================================================
 router.get('/type/:type', async (req, res) => {
   try {
     const requestedType = req.params.type;
@@ -166,8 +180,8 @@ router.get('/type/:type', async (req, res) => {
       $or: [
         { status: { $regex: /^approved$/i } },
         { status: { $exists: false } },
-        { isApproved: true },
-      ],
+        { isApproved: true }
+      ]
     };
 
     if (requestedType && requestedType.toLowerCase() !== 'all') {
@@ -185,11 +199,15 @@ router.get('/type/:type', async (req, res) => {
       }
 
       typeQuery = {
-        $and: [{$or: typeQuery.$or }, {$or: categoryFilter }],
+        $and: [{$or: typeQuery.$or }, {$or: categoryFilter }]
       };
     }
 
-    const listings = await Listing.find(typeQuery).sort({ createdAt: -1 });
+    const listings = await Listing.find(typeQuery)
+      .populate('user', 'fullName name phone tscNumber tscNo tsc school')
+      .populate('userId', 'fullName name phone tscNumber tscNo tsc school')
+      .sort({ createdAt: -1 });
+
     const formatted = listings.map(formatListing);
 
     return res.status(200).json(formatted);
@@ -199,15 +217,19 @@ router.get('/type/:type', async (req, res) => {
   }
 });
 
-// ============================================================================
+// =========================================================================
 // 3. GET SINGLE LISTING BY ID (/api/listings/:id)
-// ============================================================================
+// =========================================================================
 router.get('/:id', async (req, res) => {
   try {
-    const listing = await Listing.findById(req.params.id);
+    const listing = await Listing.findById(req.params.id)
+      .populate('user', 'fullName name phone tscNumber tscNo tsc school')
+      .populate('userId', 'fullName name phone tscNumber tscNo tsc school');
+
     if (!listing) {
       return res.status(404).json({ success: false, message: 'Listing not found' });
     }
+
     return res.status(200).json(formatListing(listing));
   } catch (err) {
     console.error('Error fetching listing:', err);
@@ -215,13 +237,13 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// ============================================================================
+// =========================================================================
 // 4. CREATE NEW LISTING (/api/listings)
-// ============================================================================
+// =========================================================================
 router.post('/', async (req, res) => {
   try {
     const body = req.body;
-    const tscCaptured = body.tscNumber || body.tscNo || body.tsc || body.tsc_number;
+    const tscCaptured = body.tscNumber || body.tscNo || body.tsc || body.tsc_number || '';
 
     const listingData = {
       ...body,
@@ -238,13 +260,13 @@ router.post('/', async (req, res) => {
       currentLocation: body.currentLocation || body.county || body.currentCounty || '',
       targetCounty: body.targetCounty || body.desiredCounty || '',
       targetSubCounty: body.targetSubCounty || '',
-      currentSchool: body.currentSchool || body.school || body.schoolName || '',
+      currentSchool: body.currentSchool || body.schoolName || body.school || '',
       schoolName: body.schoolName || body.currentSchool || body.school || '',
       tscNumber: tscCaptured,
       tscNo: tscCaptured,
       tsc: tscCaptured,
       salary: body.salary || '',
-      isTscCompliant: body.isTscCompliant === true || body.tscCompliant === true,
+      isTscCompliant: body.isTscCompliant === true || body.tscCompliant === true || (tscCaptured !== '' && tscCaptured !== 'N/A'),
       type: body.type || body.category || body.listingCategory || 'TSC Swap',
       category: body.category || body.type || body.listingCategory || 'TSC Swap',
       status: body.status || 'pending',
@@ -266,9 +288,9 @@ router.post('/', async (req, res) => {
   }
 });
 
-// ============================================================================
+// =========================================================================
 // 5. UPDATE LISTING (/api/listings/:id)
-// ============================================================================
+// =========================================================================
 const handleUpdate = async (req, res) => {
   try {
     const updateData = { ...req.body };
@@ -282,7 +304,9 @@ const handleUpdate = async (req, res) => {
       req.params.id,
       { $set: updateData },
       { new: true, runValidators: false }
-    );
+    )
+      .populate('user', 'fullName name phone tscNumber tscNo tsc school')
+      .populate('userId', 'fullName name phone tscNumber tscNo tsc school');
 
     if (!updatedListing) {
       return res.status(404).json({ success: false, message: 'Listing not found' });
@@ -302,9 +326,9 @@ const handleUpdate = async (req, res) => {
 router.put('/:id', handleUpdate);
 router.patch('/:id', handleUpdate);
 
-// ============================================================================
+// =========================================================================
 // 6. DELETE LISTING (/api/listings/:id)
-// ============================================================================
+// =========================================================================
 router.delete('/:id', async (req, res) => {
   try {
     const deletedListing = await Listing.findByIdAndDelete(req.params.id);
