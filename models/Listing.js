@@ -2,11 +2,21 @@ const mongoose = require('mongoose');
 
 const ListingSchema = new mongoose.Schema(
   {
+    // User & Profile Object References (Required for .populate())
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    },
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+    },
+
     // Category / Type handling
     type: {
       type: String,
       default: 'TSC Swap',
-      enum: ['TSC Swap', 'BOM Vacancy', 'Seeking BOM Job', 'BOM Jobs', 'Seeking BOM'],
+      enum: ['TSC Swap', 'BOM Vacancy', 'Seeking BOM Job', 'BOM Job'],
     },
     category: {
       type: String,
@@ -34,6 +44,7 @@ const ListingSchema = new mongoose.Schema(
     teacherName: { type: String, trim: true },
     tscNumber: { type: String, default: '', trim: true },
     tscNo: { type: String, default: '', trim: true },
+    tsc: { type: String, default: '', trim: true },
     phone: { type: String, default: '', trim: true },
     phoneNumber: { type: String, default: '', trim: true },
     contactPhone: { type: String, default: '', trim: true },
@@ -66,7 +77,7 @@ const ListingSchema = new mongoose.Schema(
   }
 );
 
-// Use 'validate' instead of 'save' so alias sync runs BEFORE required checks
+// Synchronize fields BEFORE validation runs
 ListingSchema.pre('validate', function (next) {
   // 1. Sync category and type
   if (this.category && !this.type) {
@@ -90,10 +101,11 @@ ListingSchema.pre('validate', function (next) {
   }
 
   // 4. Sync TSC Numbers across keys
-  const resolvedTsc = this.tscNumber || this.tscNo;
+  const resolvedTsc = this.tscNumber || this.tscNo || this.tsc;
   if (resolvedTsc) {
     this.tscNumber = String(resolvedTsc).trim();
     this.tscNo = String(resolvedTsc).trim();
+    this.tsc = String(resolvedTsc).trim();
   }
 
   // 5. Sync isApproved boolean with status string
