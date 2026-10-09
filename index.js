@@ -13,6 +13,46 @@ app.use(express.urlencoded({ extended: true }));
 // 2. Connect to MongoDB (Handles MONGO_URI and MONGODB_URI)
 let isConnected = false;
 
+// Migration function to update missing TSC numbers on existing database records
+const runTscMigration = async () => {
+  try {
+    const Listing = require('./models/Listing');
+    const User = require('./models/User');
+
+    // Find documents missing valid TSC values
+    const listings = await Listing.find({
+      $or: [
+        { tscNumber: { $exists: false } },
+        { tscNumber: '' },
+        { tscNumber: 'N/A' },
+        { tscNo: '' },
+      ],
+    });
+
+    let updatedCount = 0;
+    for (let doc of listings) {
+      const userId = doc.userId || doc.user;
+      if (userId) {
+        const user = await User.findById(userId);
+        if (user && (user.tscNumber || user.tscNo || user.tsc)) {
+          const foundTsc = String(user.tscNumber || user.tscNo || user.tsc).trim();
+          doc.tscNumber = foundTsc;
+          doc.tscNo = foundTsc;
+          doc.tsc = foundTsc;
+          doc.isTscCompliant = true;
+          await doc.save();
+          updatedCount++;
+        }
+      }
+    }
+    if (updatedCount > 0) {
+      console.log(`TSC Migration completed: ${updatedCount} listing(s) updated.`);
+    }
+  } catch (err) {
+    console.error('TSC Migration error:', err.message);
+  }
+};
+
 const connectDB = async () => {
   if (isConnected) return;
 
@@ -20,11 +60,14 @@ const connectDB = async () => {
 
   try {
     if (!mongoUri) {
-      throw new Error('Database URI is missing from environment variables.');
+      throw new Error('Database URI is missing from environment variables');
     }
     const db = await mongoose.connect(mongoUri);
     isConnected = db.connections[0].readyState === 1;
     console.log('MongoDB connected successfully');
+
+    // Run migration script once database connection is established
+    await runTscMigration();
   } catch (err) {
     console.error('MongoDB connection error:', err.message);
   }
