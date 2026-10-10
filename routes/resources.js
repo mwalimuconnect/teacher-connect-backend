@@ -2,6 +2,18 @@ const express = require('express');
 const router = express.Router();
 const Resource = require('../models/Resource');
 const axios = require('axios');
+const multer = require('multer');
+const cloudinary = require('cloudinary').v2;
+
+// Configure Multer for in-memory file handling
+const upload = multer({ storage: multer.memoryStorage() });
+
+// Configure Cloudinary (Make sure your environment variables are set in Vercel/Render)
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'lxxyqoqa',
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 // Default fallback items if the database has no records yet
 const sampleResources = [
@@ -29,7 +41,6 @@ const sampleResources = [
 const formatResource = (item) => {
   const doc = item._doc || item;
 
-  // Extract or assign price (defaults to 50 if missing or 0)
   const parsedPrice = parseFloat(doc.price);
   const finalPrice = !isNaN(parsedPrice) && parsedPrice > 0 ? parsedPrice : 50;
 
@@ -114,7 +125,6 @@ router.get('/download/:id', async (req, res) => {
       return res.status(400).json({ success: false, message: 'No file URL attached to this resource' });
     }
 
-    // Check payment & admin authorization
     const isFree = !resource.price || resource.price <= 0;
     const hasAdminAccess = isAdmin === 'true' || isAdmin === true;
     const isPaid = resource.isPaid === true;
@@ -126,7 +136,6 @@ router.get('/download/:id', async (req, res) => {
       });
     }
 
-    // 📍 Detect file extension (including .zip)
     let extension = '.docx';
     if (fileUrl.includes('.zip')) extension = '.zip';
     else if (fileUrl.includes('.xlsx')) extension = '.xlsx';
@@ -134,7 +143,7 @@ router.get('/download/:id', async (req, res) => {
     else if (fileUrl.includes('.ppt') || fileUrl.includes('.pptx')) extension = '.pptx';
 
     const safeFilename = resource.title.replace(/[^a-zA-Z0-9_\-]/g, '_');
-res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}${extension}"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}${extension}"`);
     
     if (extension === '.zip') {
       res.setHeader('Content-Type', 'application/zip');
@@ -148,7 +157,6 @@ res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}${ext
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
     }
 
-    // Stream binary document directly through Express
     const response = await axios({
       method: 'get',
       url: fileUrl,
@@ -165,7 +173,34 @@ res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}${ext
 });
 
 // ============================================================================
-// 4. POST /api/resources - UPLOAD/CREATE A NEW RESOURCE
+// 4. POST /api/upload - Receive file from Flutter and upload to Cloudinary
+// ============================================================================
+router.post('/upload', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file provided in the request.' });
+    }
+
+    // Convert buffer to data URI for Cloudinary
+    const fileBase64 = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+
+    const uploadResult = await cloudinary.uploader.upload(fileBase64, {
+      resource_type: 'auto', // Handles PDF, DOCX, ZIP, and images automatically
+      folder: 'teacher_resources',
+    });
+
+    return res.status(200).json({
+      success: true,
+      url: uploadResult.secure_url,
+    });
+  } catch (error) {
+    console.error('Cloudinary server upload error:', error);
+    return res.status(500).json({ error: 'Failed to upload file to Cloudinary: ' + error.message });
+  }
+});
+
+// ============================================================================
+// 5. POST /api/resources - UPLOAD/CREATE A NEW RESOURCE RECORD
 // ============================================================================
 router.post('/', async (req, res) => {
   try {
