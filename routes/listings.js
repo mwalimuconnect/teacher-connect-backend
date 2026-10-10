@@ -49,32 +49,36 @@ const formatListing = (item) => {
     userObj.name ||
     '';
 
-  // 4. Safe TSC Number Extraction
-  const rawTsc =
-    doc.tscNumber ||
-    doc.tscNo ||
-    doc.tsc ||
-    doc.tsc_number ||
-    doc.tsc_no ||
-    userObj.tscNumber ||
-    userObj.tscNo ||
-    userObj.tsc ||
-    userObj.tsc_number ||
-    userObj.tsc_no ||
-    item.tscNumber ||
-    item.tscNo;
+    // 4. Safe TSC Number Extraction
+  // Extract all possible values into an array
+  const candidates = [
+    userObj.tscNumber,
+    userObj.tscNo,
+    userObj.tsc,
+    userObj.tsc_number,
+    userObj.tsc_no,
+    doc.tscNumber,
+    doc.tscNo,
+    doc.tsc,
+    doc.tsc_number,
+    doc.tsc_no,
+    item.tscNumber,
+    item.tscNo,
+  ];
 
-  let tscVal = '';
-  if (rawTsc !== null && rawTsc !== undefined) {
-    tscVal = String(rawTsc).trim();
-  }
+  // Filter out null, undefined, empty strings, "N/A", "null", and "undefined"
+  const validTsc = candidates.find((val) => {
+    if (val === null || val === undefined) return false;
+    const str = String(val).trim();
+    return (
+      str.length > 0 &&
+      str.toUpperCase() !== 'N/A' &&
+      str.toUpperCase() !== 'NULL' &&
+      str.toUpperCase() !== 'UNDEFINED'
+    );
+  });
 
-  const displayTsc =
-    tscVal.length > 0 &&
-    tscVal.toUpperCase() !== 'UNDEFINED' &&
-    tscVal.toUpperCase() !== 'NULL'
-      ? tscVal
-      : 'N/A';
+  const displayTsc = validTsc ? String(validTsc).trim() : 'N/A';
 
   // 5. Subject & Location Fallbacks
   const subjectsVal =
