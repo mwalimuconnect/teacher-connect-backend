@@ -8,7 +8,7 @@ const cloudinary = require('cloudinary').v2;
 // Configure Multer for in-memory file handling
 const upload = multer({ storage: multer.memoryStorage() });
 
-// Configure Cloudinary (Make sure your environment variables are set in Vercel/Render)
+// Configure Cloudinary
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'lxxyqoqa',
   api_key: process.env.CLOUDINARY_API_KEY,
@@ -37,10 +37,8 @@ const sampleResources = [
   },
 ];
 
-// Helper to format resource items properly for Flutter UI
 const formatResource = (item) => {
   const doc = item._doc || item;
-
   const parsedPrice = parseFloat(doc.price);
   const finalPrice = !isNaN(parsedPrice) && parsedPrice > 0 ? parsedPrice : 50;
 
@@ -181,11 +179,10 @@ router.post('/upload', upload.single('file'), async (req, res) => {
       return res.status(400).json({ error: 'No file provided in the request.' });
     }
 
-    // Convert buffer to data URI for Cloudinary
     const fileBase64 = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
 
     const uploadResult = await cloudinary.uploader.upload(fileBase64, {
-      resource_type: 'auto', // Handles PDF, DOCX, ZIP, and images automatically
+      resource_type: 'auto', // Safely handles PDF, DOCX, PPTX, and ZIP files
       folder: 'teacher_resources',
     });
 
