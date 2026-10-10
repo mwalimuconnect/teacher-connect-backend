@@ -398,38 +398,73 @@ router.delete('/:id', async (req, res) => {
 });
 
 // =========================================================
-// 7. ONE-TIME MIGRATION ROUTE: Sync TSC numbers from Users
+// 7. ENHANCED MIGRATION ROUTE: Sync TSC numbers via User ID or Phone Match
 // =========================================================
 router.get('/admin/sync-tsc', async (req, res) => {
   try {
     const User = require('../models/User');
 
-    // Find all listings with missing or N/A TSC numbers
-    const listings = await Listing.find({
-      $or: [
-        { tscNumber: '' },
-        { tscNumber: 'N/A' },
-        { tscNumber: { $exists: false } },
-        { tscNo: '' },
-        { tscNo: 'N/A' },
-      ],
-    });
-
+    // Fetch ALL listings to perform thorough validation
+    const listings = await Listing.find({});
     let updatedCount = 0;
 
     for (const listing of listings) {
-      const userId = listing.user || listing.userId;
-      if (userId) {
-        const userDoc = await User.findById(userId);
-        if (userDoc) {
-          const foundTsc =
-            userDoc.tscNumber || userDoc.tscNo || userDoc.tsc || '';
+      // Extract raw listing TSC value
+      const rawTsc = (listing.tscNumber || listing.tscNo || listing.tsc || '').toString().trim();
+      
+      // Check if current listing lacks a valid numeric/alphanumeric TSC
+      const isCurrentTscInvalid =
+        rawTsc === '' ||
+        rawTsc.toUpperCase() === 'N/A' ||
+        rawTsc.toUpperCase() === 'NULL' ||
+        rawTsc.toUpperCase() === 'UNDEFINED';
 
-          if (foundTsc && foundTsc.toUpperCase() !== 'N/A') {
+      if (isCurrentTscInvalid) {
+        let userDoc = null;
+
+        // 1. Try finding user by MongoDB Object Reference
+        const userId = listing.user || listing.userId;
+        if (userId) {
+          try {
+            userDoc = await User.findById(userId);
+          } catch (e) {
+            // Ignore invalid ObjectId cast errors
+          }
+        }
+
+        // 2. Fallback: Try matching by Phone Number if User ID wasn't linked
+        if (!userDoc) {
+          const phone = (listing.phone || listing.contactPhone || listing.phoneNumber || '').toString().trim();
+          if (phone) {
+            userDoc = await User.findOne({
+              $or: [
+                { phone: phone },
+                { phoneNumber: phone },
+                { contactPhone: phone }
+              ]
+            });
+          }
+        }
+
+        // 3. If User found, extract valid TSC number
+        if (userDoc) {
+          const foundTsc = (userDoc.tscNumber || userDoc.tscNo || userDoc.tsc || '').toString().trim();
+          
+          if (
+            foundTsc &&
+            foundTsc.toUpperCase() !== 'N/A' &&
+            foundTsc.toUpperCase() !== 'NULL' &&
+            foundTsc.toUpperCase() !== 'UNDEFINED'
+          ) {
             listing.tscNumber = foundTsc;
             listing.tscNo = foundTsc;
             listing.tsc = foundTsc;
             listing.isTscCompliant = true;
+
+            // Link user ID if missing
+            if (!listing.user) listing.user = userDoc._id;
+            if (!listing.userId) listing.userId = userDoc._id;
+
             await listing.save();
             updatedCount++;
           }
@@ -439,7 +474,7 @@ router.get('/admin/sync-tsc', async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: `Successfully synchronized ${updatedCount} listings with User TSC numbers!`,
+      message: `Successfully synchronized ${updatedCount} listings using User IDs and Phone matching!`,
     });
   } catch (err) {
     console.error('Migration error:', err);
@@ -448,5 +483,5 @@ router.get('/admin/sync-tsc', async (req, res) => {
       .json({ success: false, error: err.message || 'Migration failed' });
   }
 });
-
+            
 module.exports = router;
