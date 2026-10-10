@@ -134,9 +134,7 @@ router.get('/download/:id', async (req, res) => {
     else if (fileUrl.includes('.ppt') || fileUrl.includes('.pptx')) extension = '.pptx';
 
     const safeFilename = resource.title.replace(/[^a-zA-Z0-9_\-]/g, '_');
-
-    // Set binary content-disposition and mime headers
-    res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}${extension}"`);
+res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}${extension}"`);
     
     if (extension === '.zip') {
       res.setHeader('Content-Type', 'application/zip');
