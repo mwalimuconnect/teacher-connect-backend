@@ -397,4 +397,56 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// =========================================================
+// 7. ONE-TIME MIGRATION ROUTE: Sync TSC numbers from Users
+// =========================================================
+router.get('/admin/sync-tsc', async (req, res) => {
+  try {
+    const User = require('../models/User');
+
+    // Find all listings with missing or N/A TSC numbers
+    const listings = await Listing.find({
+      $or: [
+        { tscNumber: '' },
+        { tscNumber: 'N/A' },
+        { tscNumber: { $exists: false } },
+        { tscNo: '' },
+        { tscNo: 'N/A' },
+      ],
+    });
+
+    let updatedCount = 0;
+
+    for (const listing of listings) {
+      const userId = listing.user || listing.userId;
+      if (userId) {
+        const userDoc = await User.findById(userId);
+        if (userDoc) {
+          const foundTsc =
+            userDoc.tscNumber || userDoc.tscNo || userDoc.tsc || '';
+
+          if (foundTsc && foundTsc.toUpperCase() !== 'N/A') {
+            listing.tscNumber = foundTsc;
+            listing.tscNo = foundTsc;
+            listing.tsc = foundTsc;
+            listing.isTscCompliant = true;
+            await listing.save();
+            updatedCount++;
+          }
+        }
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Successfully synchronized ${updatedCount} listings with User TSC numbers!`,
+    });
+  } catch (err) {
+    console.error('Migration error:', err);
+    return res
+      .status(500)
+      .json({ success: false, error: err.message || 'Migration failed' });
+  }
+});
+
 module.exports = router;
