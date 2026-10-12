@@ -4,9 +4,9 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
-// =========================================================================
+// =========================================================
 // 1. REGISTER ENDPOINT (/api/auth/register)
-// =========================================================================
+// =========================================================
 router.post('/register', async (req, res) => {
   try {
     const {
@@ -135,9 +135,9 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// =========================================================================
+// =========================================================
 // 2. LOGIN ENDPOINT (/api/auth/login)
-// =========================================================================
+// =========================================================
 router.post('/login', async (req, res) => {
   try {
     const { phone, phoneNumber, password } = req.body || {};
@@ -229,9 +229,9 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// =========================================================================
+// =========================================================
 // 3. ADMIN VERIFICATION ENDPOINT (/api/auth/admin/verify)
-// =========================================================================
+// =========================================================
 router.post('/admin/verify', async (req, res) => {
   try {
     const { passcode, adminPasscode } = req.body || {};
@@ -263,6 +263,83 @@ router.post('/admin/verify', async (req, res) => {
       message: 'Server error during passcode verification.',
       error: error.message,
     });
+  }
+});
+
+// =========================================================
+// 4. FORGOT PASSWORD ENDPOINT (/api/auth/forgot-password)
+// =========================================================
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { identifier } = req.body;
+    if (!identifier) {
+      return res.status(400).json({ success: false, message: 'Phone number or identifier is required.' });
+    }
+
+    const cleanIdentifier = String(identifier).trim();
+    const user = await User.findOne({
+      $or: [{ phone: cleanIdentifier }, { phoneNumber: cleanIdentifier }]
+    });
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found with this phone number.' });
+    }
+
+    // Generate a 6-digit reset token
+    const resetToken = Math.floor(100000 + Math.random() * 900000).toString();
+    
+    // Save token and expiry (valid for 15 minutes) to user document
+    user.resetPasswordToken = resetToken;
+    user.resetPasswordExpires = Date.now() + 15 * 60 * 1000;
+    await user.save();
+
+    console.log(`[RESET TOKEN] For ${cleanIdentifier}: ${resetToken}`);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Reset code generated successfully.',
+      token: resetToken
+    });
+  } catch (error) {
+    console.error('Forgot Password Error:', error);
+    return res.status(500).json({ success: false, message: 'Server error during password reset request.' });
+  }
+});
+
+// =========================================================
+// 5. RESET PASSWORD ENDPOINT (/api/auth/reset-password)
+// =========================================================
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { identifier, token, newPassword } = req.body;
+    if (!identifier || !token || !newPassword) {
+      return res.status(400).json({ success: false, message: 'All fields are required.' });
+    }
+
+    const cleanIdentifier = String(identifier).trim();
+    const user = await User.findOne({
+      $or: [{ phone: cleanIdentifier }, { phoneNumber: cleanIdentifier }],
+      resetPasswordToken: String(token).trim(),
+      resetPasswordExpires: { $gt: Date.now() }
+    });
+
+    if (!user) {
+      return res.status(400).json({ success: false, message: 'Invalid or expired reset code.' });
+    }
+
+    // Hash the new password securely
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(String(newPassword).trim(), salt);
+
+    // Clear out the reset token fields
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+    await user.save();
+
+    return res.status(200).json({ success: true, message: 'Password successfully reset! Please login.' });
+  } catch (error) {
+    console.error('Reset Password Error:', error);
+    return res.status(500).json({ success: false, message: 'Server error during password update.' });
   }
 });
 
