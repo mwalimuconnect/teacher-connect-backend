@@ -86,6 +86,7 @@ const listingsRoutes = require('./routes/listings');
 const mpesaRoutes = require('./routes/mpesa');
 const resourcesRoutes = require('./routes/resources');
 const uploadRoutes = require('./routes/upload');
+const supportRoutes = require('./routes/support');
 
 // 4. Mount API Routes
 app.use('/api/auth', authRoutes);
@@ -94,6 +95,7 @@ app.use('/api/listings', listingsRoutes);
 app.use('/api/mpesa', mpesaRoutes);
 app.use('/api/resources', resourcesRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/support', supportRoutes);
 
 // Health check endpoint
 app.get('/', (req, res) => {
