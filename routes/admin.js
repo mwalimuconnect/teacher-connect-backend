@@ -3,6 +3,7 @@ const router = express.Router();
 const Listing = require('../models/Listing');
 const User = require('../models/User');
 const SupportTicket = require('../models/SupportTicket');
+const Announcement = require('../models/Announcement');
 
 // Helper to standardize listing object structures for Flutter client
 const formatListing = (item) => {
@@ -11,7 +12,7 @@ const formatListing = (item) => {
 
   const phoneVal = item.phone || item.contactPhone || item.phoneNumber || '';
   const schoolVal = item.currentSchool || item.school || item.schoolName || '';
-  const nameVal = item.fullName || item.teacherName || item.userName || (item.user && item.user.name) || 'N/A';
+  const nameVal = item.fullName || item.teacherName || item.userName || (item.user && item.user.fullName) || 'N/A';
   const subjectsVal = item.subjectCombination || item.subjects || item.subject || 'N/A';
 
   // Extract TSC Number across possible property names
@@ -71,9 +72,9 @@ const formatListing = (item) => {
   };
 };
 
-// =========================================================================
+// =========================================================
 // 1. GET /api/admin/stats - Aggregated Admin Dashboard Counters
-// =========================================================================
+// =========================================================
 router.get('/stats', async (req, res) => {
   try {
     const [totalListings, totalMembers, pendingUsers, pendingListings, totalSupportTickets] = await Promise.all([
@@ -98,13 +99,13 @@ router.get('/stats', async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      totalListings: totalListings,
+      totalListings,
       totalCount: totalListings,
       pendingApprovals: totalPending,
       pendingCount: totalPending,
       paymentsReceived: 0,
-      totalMembers: totalMembers,
-      totalSupportTickets: totalSupportTickets,
+      totalMembers,
+      totalSupportTickets,
     });
   } catch (error) {
     console.error('Error fetching admin stats:', error);
@@ -119,9 +120,9 @@ router.get('/stats', async (req, res) => {
   }
 });
 
-// =========================================================================
+// =========================================================
 // 2. GET /api/admin/members - Fetch All Registered Members
-// =========================================================================
+// =========================================================
 router.get('/members', async (req, res) => {
   try {
     const members = await User.find()
@@ -131,7 +132,7 @@ router.get('/members', async (req, res) => {
     return res.status(200).json({
       success: true,
       count: members.length,
-      members: members,
+      members,
     });
   } catch (error) {
     console.error('Error fetching registered members:', error);
@@ -139,9 +140,9 @@ router.get('/members', async (req, res) => {
   }
 });
 
-// =========================================================================
+// =========================================================
 // 3. GET /api/admin/pending-approvals - Fetch All Pending Categories
-// =========================================================================
+// =========================================================
 router.get('/pending-approvals', async (req, res) => {
   try {
     const [pendingSwaps, pendingBomSeekers, pendingBomVacancies, pendingMembers] = await Promise.all([
@@ -154,14 +155,14 @@ router.get('/pending-approvals', async (req, res) => {
 
       Listing.find({
         $and: [
-          { $or: [{ category: { $regex: /seeker\vert{}seeking/i } }, { type: {$regex: /seeker|seeking/i } }] },
+          { $or: [{ category: { $regex: /seeker\vert{}vert\vert{}seeking/i } }, { type: {$regex: /seeker|seeking|job/i } }] },
           { $or: [{ status: { $regex: /^pending$/i } }, { isApproved: false }] }
         ]
       }).sort({ createdAt: -1 }),
 
       Listing.find({
         $and: [
-          { $or: [{ category: { $regex: /vacancy\vert{}job/i } }, { type: {$regex: /vacancy|job/i } }] },
+          { $or: [{ category: { $regex: /vacancy\vert{}vert\vert{}job/i } }, { type: {$regex: /vacancy|job/i } }] },
           { $or: [{ status: { $regex: /^pending$/i } }, { isApproved: false }] }
         ]
       }).sort({ createdAt: -1 }),
@@ -185,9 +186,9 @@ router.get('/pending-approvals', async (req, res) => {
   }
 });
 
-// =========================================================================
+// =========================================================
 // 4. POST /api/admin/approve - Approve Member or Listing Item
-// =========================================================================
+// =========================================================
 router.post('/approve', async (req, res) => {
   const { id, type } = req.body;
 
@@ -205,9 +206,9 @@ router.post('/approve', async (req, res) => {
   }
 });
 
-// =========================================================================
+// =========================================================
 // 5. POST /api/admin/reject - Reject Member or Listing Item
-// =========================================================================
+// =========================================================
 router.post('/reject', async (req, res) => {
   const { id, type } = req.body;
 
@@ -225,9 +226,9 @@ router.post('/reject', async (req, res) => {
   }
 });
 
-// =========================================================================
+// =========================================================
 // 6. GET /api/admin/swaps - Fetch All TSC Swaps
-// =========================================================================
+// =========================================================
 router.get('/swaps', async (req, res) => {
   try {
     const swaps = await Listing.find({
@@ -244,9 +245,9 @@ router.get('/swaps', async (req, res) => {
   }
 });
 
-// =========================================================================
+// =========================================================
 // 7. GET /api/admin/bom-vacancies - Fetch All BOM Vacancies
-// =========================================================================
+// =========================================================
 router.get('/bom-vacancies', async (req, res) => {
   try {
     const vacancies = await Listing.find({
@@ -263,9 +264,9 @@ router.get('/bom-vacancies', async (req, res) => {
   }
 });
 
-// =========================================================================
+// =========================================================
 // 8. GET /api/admin/bom-seekers - Fetch All BOM Seekers
-// =========================================================================
+// =========================================================
 router.get('/bom-seekers', async (req, res) => {
   try {
     const seekers = await Listing.find({
@@ -282,9 +283,9 @@ router.get('/bom-seekers', async (req, res) => {
   }
 });
 
-// =========================================================================
-// 9. DELETE /api/admin/listing/:id or /listings/:id
-// =========================================================================
+// =========================================================
+// 9. DELETE /api/admin/listing/:id
+// =========================================================
 const deleteListingHandler = async (req, res) => {
   try {
     const deletedItem = await Listing.findByIdAndDelete(req.params.id);
@@ -303,5 +304,45 @@ const deleteListingHandler = async (req, res) => {
 router.delete('/listings/:id', deleteListingHandler);
 router.delete('/listing/:id', deleteListingHandler);
 router.delete('/:id', deleteListingHandler);
+
+// =========================================================
+// 10. POST /api/admin/announcement - Create Broadcast Notice
+// =========================================================
+router.post('/announcement', async (req, res) => {
+  try {
+    const { title, message, authorName } = req.body || {};
+
+    if (!title || !message) {
+      return res.status(400).json({
+        success: false,
+        message: 'Title and message content are required.',
+      });
+    }
+
+    // Deactivate previous active announcements
+    await Announcement.updateMany({ isActive: true }, { isActive: false });
+
+    const newNotice = new Announcement({
+      title: String(title).trim(),
+      message: String(message).trim(),
+      postedBy: authorName || 'Admin',
+      isActive: true,
+    });
+
+    await newNotice.save();
+
+    return res.status(201).json({
+      success: true,
+      message: 'Announcement posted successfully!',
+      announcement: newNotice,
+    });
+  } catch (error) {
+    console.error('Post Announcement Error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while posting announcement.',
+    });
+  }
+});
 
 module.exports = router;
