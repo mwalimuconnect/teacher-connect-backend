@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Listing = require('../models/Listing');
 const User = require('../models/User');
+const SupportTicket = require('../models/SupportTicket');
 
 // Helper to standardize listing object structures for Flutter client
 const formatListing = (item) => {
@@ -75,7 +76,7 @@ const formatListing = (item) => {
 // =========================================================================
 router.get('/stats', async (req, res) => {
   try {
-    const [totalListings, totalMembers, pendingUsers, pendingListings] = await Promise.all([
+    const [totalListings, totalMembers, pendingUsers, pendingListings, totalSupportTickets] = await Promise.all([
       Listing.countDocuments(),
       User.countDocuments(),
       User.countDocuments({
@@ -89,7 +90,8 @@ router.get('/stats', async (req, res) => {
           { status: { $regex: /^pending$/i } },
           { isApproved: false }
         ]
-      })
+      }),
+      SupportTicket.countDocuments()
     ]);
 
     const totalPending = pendingUsers + pendingListings;
@@ -102,6 +104,7 @@ router.get('/stats', async (req, res) => {
       pendingCount: totalPending,
       paymentsReceived: 0,
       totalMembers: totalMembers,
+      totalSupportTickets: totalSupportTickets,
     });
   } catch (error) {
     console.error('Error fetching admin stats:', error);
@@ -111,6 +114,7 @@ router.get('/stats', async (req, res) => {
       pendingApprovals: 0,
       paymentsReceived: 0,
       totalMembers: 0,
+      totalSupportTickets: 0,
     });
   }
 });
