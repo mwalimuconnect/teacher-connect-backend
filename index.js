@@ -79,7 +79,7 @@ app.use(async (req, res, next) => {
   next();
 });
 
-// 3. Import Routes
+// 3. Import Routes & Models
 const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
 const listingsRoutes = require('./routes/listings');
@@ -87,6 +87,7 @@ const mpesaRoutes = require('./routes/mpesa');
 const resourcesRoutes = require('./routes/resources');
 const uploadRoutes = require('./routes/upload');
 const supportRoutes = require('./routes/support');
+const Announcement = require('./models/Announcement');
 
 // 4. Mount API Routes
 app.use('/api/auth', authRoutes);
@@ -96,6 +97,20 @@ app.use('/api/mpesa', mpesaRoutes);
 app.use('/api/resources', resourcesRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/support', supportRoutes);
+
+// Public GET endpoint to fetch the active broadcast announcement
+app.get('/api/announcement/active', async (req, res) => {
+  try {
+    const activeNotice = await Announcement.findOne({ isActive: true }).sort({ createdAt: -1 });
+    return res.status(200).json({
+      success: true,
+      announcement: activeNotice,
+    });
+  } catch (error) {
+    console.error('Fetch Announcement Error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to fetch announcement' });
+  }
+});
 
 // Health check endpoint
 app.get('/', (req, res) => {
