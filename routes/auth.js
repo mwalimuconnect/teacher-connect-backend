@@ -267,79 +267,57 @@ router.post('/admin/verify', async (req, res) => {
 });
 
 // =========================================================
-// 4. FORGOT PASSWORD ENDPOINT (/api/auth/forgot-password)
-// =========================================================
-router.post('/forgot-password', async (req, res) => {
-  try {
-    const { identifier } = req.body;
-    if (!identifier) {
-      return res.status(400).json({ success: false, message: 'Phone number or identifier is required.' });
-    }
-
-    const cleanIdentifier = String(identifier).trim();
-    const user = await User.findOne({
-      $or: [{ phone: cleanIdentifier }, { phoneNumber: cleanIdentifier }]
-    });
-
-    if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found with this phone number.' });
-    }
-
-    // Generate a 6-digit reset token
-    const resetToken = Math.floor(100000 + Math.random() * 900000).toString();
-    
-    // Save token and expiry (valid for 15 minutes) to user document
-    user.resetPasswordToken = resetToken;
-    user.resetPasswordExpires = Date.now() + 15 * 60 * 1000;
-    await user.save();
-
-    console.log(`[RESET TOKEN] For ${cleanIdentifier}: ${resetToken}`);
-
-    return res.status(200).json({
-      success: true,
-      message: 'Reset code generated successfully.',
-      token: resetToken
-    });
-  } catch (error) {
-    console.error('Forgot Password Error:', error);
-    return res.status(500).json({ success: false, message: 'Server error during password reset request.' });
-  }
-});
-
-// =========================================================
-// 5. RESET PASSWORD ENDPOINT (/api/auth/reset-password)
+// 4. RESET PASSWORD ENDPOINT (/api/auth/reset-password)
 // =========================================================
 router.post('/reset-password', async (req, res) => {
   try {
-    const { identifier, token, newPassword } = req.body;
-    if (!identifier || !token || !newPassword) {
-      return res.status(400).json({ success: false, message: 'All fields are required.' });
+    const { phoneNumber, phone, idNumber, tscNumber, newPassword } = req.body || {};
+
+    const rawPhone = phoneNumber || phone || '';
+    const cleanPhone = String(rawPhone).replace(/\s+/g, '');
+    const cleanId = String(idNumber || '').trim();
+    const cleanTsc = String(tscNumber || '').trim();
+    const cleanPassword = String(newPassword || '').trim();
+
+    if (!cleanPhone || !cleanId || !cleanTsc || !cleanPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Phone number, ID number, TSC number, and new password are all required.',
+      });
     }
 
-    const cleanIdentifier = String(identifier).trim();
+    // Match user by Phone, ID/Passport, and TSC Number simultaneously
     const user = await User.findOne({
-      $or: [{ phone: cleanIdentifier }, { phoneNumber: cleanIdentifier }],
-      resetPasswordToken: String(token).trim(),
-      resetPasswordExpires: { $gt: Date.now() }
+      $and: [
+        { $or: [{ phone: cleanPhone }, { phoneNumber: cleanPhone }] },
+        { $or: [{ nationalId: cleanId }, { idNumber: cleanId }] },
+        { tscNumber: cleanTsc }
+      ]
     });
 
     if (!user) {
-      return res.status(400).json({ success: false, message: 'Invalid or expired reset code.' });
+      return res.status(404).json({
+        success: false,
+        message: 'Verification failed. Phone number, ID number, and TSC number do not match our records.',
+      });
     }
 
     // Hash the new password securely
     const salt = await bcrypt.genSalt(10);
-    user.password = await bcrypt.hash(String(newPassword).trim(), salt);
-
-    // Clear out the reset token fields
-    user.resetPasswordToken = undefined;
-    user.resetPasswordExpires = undefined;
+    user.password = await bcrypt.hash(cleanPassword, salt);
     await user.save();
 
-    return res.status(200).json({ success: true, message: 'Password successfully reset! Please login.' });
+    return res.status(200).json({
+      success: true,
+      message: 'Password reset successfully! You can now log in.',
+    });
   } catch (error) {
     console.error('Reset Password Error:', error);
-    return res.status(500).json({ success: false, message: 'Server error during password update.' });
+    return res.status(500).json({
+      success: false,
+      message: 'Server error during password reset.',
+      error: error.message,
+    });
   }
 });
 
