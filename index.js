@@ -35,7 +35,7 @@ const runTscMigration = async () => {
       if (userId) {
         const user = await User.findById(userId);
         if (user && (user.tscNumber || user.tscNo || user.tsc)) {
-          const foundTsc = String(user.tscNumber || user.tscNo || user.tsc).trim();
+          const foundTsc = String(user.tscNumber || user.tscNo || user.tsc);
           doc.tscNumber = foundTsc;
           doc.tscNo = foundTsc;
           doc.tsc = foundTsc;
@@ -57,7 +57,6 @@ const connectDB = async () => {
   if (isConnected) return;
 
   const mongoUri = process.env.MONGO_URI || process.env.MONGODB_URI;
-
   try {
     if (!mongoUri) {
       throw new Error('Database URI is missing from environment variables');
@@ -65,7 +64,7 @@ const connectDB = async () => {
     const db = await mongoose.connect(mongoUri);
     isConnected = db.connections[0].readyState === 1;
     console.log('MongoDB connected successfully');
-
+    
     // Run migration script once database connection is established
     await runTscMigration();
   } catch (err) {
@@ -79,29 +78,33 @@ app.use(async (req, res, next) => {
   next();
 });
 
+// ==========================================
 // 3. Import Routes & Models
+// ==========================================
 const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
 const listingsRoutes = require('./routes/listings');
 const mpesaRoutes = require('./routes/mpesa');
 const resourcesRoutes = require('./routes/resources');
-const uploadRoutes = require('./routes/upload');
 const supportRoutes = require('./routes/support');
+const verifyTscRoutes = require('./routes/verifyTsc');
 const Announcement = require('./models/Announcement');
 
+// ==========================================
 // 4. Mount API Routes
+// ==========================================
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/listings', listingsRoutes);
 app.use('/api/mpesa', mpesaRoutes);
 app.use('/api/resources', resourcesRoutes);
-app.use('/api/upload', uploadRoutes);
 app.use('/api/support', supportRoutes);
+app.use('/api/verify-tsc', verifyTscRoutes);
 
 // Public GET endpoint to fetch the active broadcast announcement
 app.get('/api/announcement/active', async (req, res) => {
   try {
-    const activeNotice = await Announcement.findOne({ isActive: true }).sort({ createdAt: -1 });
+    const activeNotice = await Announcement.findOne({ isActive: true });
     return res.status(200).json({
       success: true,
       announcement: activeNotice,
