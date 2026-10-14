@@ -87,7 +87,7 @@ const listingsRoutes = require('./routes/listings');
 const mpesaRoutes = require('./routes/mpesa');
 const resourcesRoutes = require('./routes/resources');
 const supportRoutes = require('./routes/support');
-const uploadRoutes = require('./routes/upload'); // <--- ADDED UPLOAD ROUTE
+const uploadRoutes = require('./routes/upload');
 const verifyTscRoutes = require('./routes/verifyTsc');
 const Announcement = require('./models/Announcement');
 
@@ -100,7 +100,7 @@ app.use('/api/listings', listingsRoutes);
 app.use('/api/mpesa', mpesaRoutes);
 app.use('/api/resources', resourcesRoutes);
 app.use('/api/support', supportRoutes);
-app.use('/api/upload', uploadRoutes);           // <--- MOUNTED UPLOAD ROUTE
+app.use('/api/upload', uploadRoutes);
 app.use('/api/verify-tsc', verifyTscRoutes);
 
 // Public GET endpoint to fetch the active broadcast announcement
