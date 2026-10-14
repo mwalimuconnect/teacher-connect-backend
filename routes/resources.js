@@ -202,10 +202,21 @@ router.post('/', async (req, res) => {
 });
 
 // ============================================================================
-// 5. DELETE /api/resources/:id - DELETE AN UNWANTED RESOURCE
+// 5. DELETE /api/resources/:id - DELETE AN UNWANTED RESOURCE (ADMIN ONLY)
 // ============================================================================
 router.delete('/:id', async (req, res) => {
   try {
+    const { isAdmin } = req.query;
+    
+    // Strict Admin Authorization Check
+    const hasAdminAccess = isAdmin === 'true' || isAdmin === true;
+    if (!hasAdminAccess) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. Only administrators can delete resources.',
+      });
+    }
+
     const resourceId = req.params.id;
     const deletedResource = await Resource.findByIdAndDelete(resourceId);
 
@@ -215,7 +226,7 @@ router.delete('/:id', async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: 'Resource deleted successfully!',
+      message: 'Resource deleted successfully by admin!',
     });
   } catch (error) {
     console.error('Error deleting resource:', error);
