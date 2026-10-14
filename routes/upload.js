@@ -34,7 +34,7 @@ router.post('/', upload.single('file'), async (req, res) => {
       {
         resource_type: 'raw', // Mandatory for PDFs, DOCX, and office documents
         folder: 'teacher_resources',
-        public_id: `${nameWithoutExt}_${Date.now()}${ext}`, // Retains extension for proper browser rendering
+        public_id: `${nameWithoutExt}_${Date.now()}${ext}`,
         use_filename: true,
       },
       (error, result) => {
