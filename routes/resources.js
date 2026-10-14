@@ -202,14 +202,51 @@ router.post('/', async (req, res) => {
 });
 
 // ============================================================================
-// 5. DELETE /api/resources/:id - DELETE AN UNWANTED RESOURCE (ADMIN ONLY)
+// 5. PUT /api/resources/:id - UPDATE AN EXISTING RESOURCE (ADMIN ONLY)
+// ============================================================================
+router.put('/:id', async (req, res) => {
+  try {
+    const { isAdmin } = req.query;
+    const hasAdminAccess = isAdmin === 'true' || isAdmin === true;
+    
+    if (!hasAdminAccess) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. Only administrators can edit resources.',
+      });
+    }
+
+    const { title, category, subject, form, fileUrl, price, description } = req.body;
+
+    const updatedResource = await Resource.findByIdAndUpdate(
+      req.params.id,
+      { title, category, subject, form, fileUrl, price, description },
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedResource) {
+      return res.status(404).json({ success: false, message: 'Resource not found.' });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Resource updated successfully!',
+      resource: formatResource(updatedResource),
+    });
+  } catch (error) {
+    console.error('Error updating resource:', error);
+    return res.status(500).json({ success: false, message: 'Failed to update resource.' });
+  }
+});
+
+// ============================================================================
+// 6. DELETE /api/resources/:id - DELETE AN UNWANTED RESOURCE (ADMIN ONLY)
 // ============================================================================
 router.delete('/:id', async (req, res) => {
   try {
     const { isAdmin } = req.query;
-    
-    // Strict Admin Authorization Check
     const hasAdminAccess = isAdmin === 'true' || isAdmin === true;
+    
     if (!hasAdminAccess) {
       return res.status(403).json({
         success: false,
