@@ -126,7 +126,7 @@ router.get('/download/:id', async (req, res) => {
       });
     }
 
-    // 馃搷 Detect file extension (including .zip)
+    // Detect file extension (including .zip)
     let extension = '.docx';
     if (fileUrl.includes('.zip')) extension = '.zip';
     else if (fileUrl.includes('.xlsx')) extension = '.xlsx';
@@ -134,7 +134,7 @@ router.get('/download/:id', async (req, res) => {
     else if (fileUrl.includes('.ppt') || fileUrl.includes('.pptx')) extension = '.pptx';
 
     const safeFilename = resource.title.replace(/[^a-zA-Z0-9_\-]/g, '_');
-res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}${extension}"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}${extension}"`);
     
     if (extension === '.zip') {
       res.setHeader('Content-Type', 'application/zip');
@@ -201,5 +201,26 @@ router.post('/', async (req, res) => {
   }
 });
 
+// ============================================================================
+// 5. DELETE /api/resources/:id - DELETE AN UNWANTED RESOURCE
+// ============================================================================
+router.delete('/:id', async (req, res) => {
+  try {
+    const resourceId = req.params.id;
+    const deletedResource = await Resource.findByIdAndDelete(resourceId);
+
+    if (!deletedResource) {
+      return res.status(404).json({ success: false, message: 'Resource not found in database.' });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Resource deleted successfully!',
+    });
+  } catch (error) {
+    console.error('Error deleting resource:', error);
+    return res.status(500).json({ success: false, message: 'Failed to delete resource.' });
+  }
+});
+
 module.exports = router;
-                     
