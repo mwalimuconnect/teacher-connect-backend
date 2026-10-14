@@ -4,9 +4,9 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
-// =========================================================
+// ================================================================
 // 1. REGISTER ENDPOINT (/api/auth/register)
-// =========================================================
+// ================================================================
 router.post('/register', async (req, res) => {
   try {
     const {
@@ -135,9 +135,9 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// =========================================================
+// ================================================================
 // 2. LOGIN ENDPOINT (/api/auth/login)
-// =========================================================
+// ================================================================
 router.post('/login', async (req, res) => {
   try {
     const { phone, phoneNumber, password } = req.body || {};
@@ -161,10 +161,7 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // Safely pull password string from database document
     const dbPassword = user.password ? String(user.password) : '';
-
-    // Safely check bcrypt hash without throwing a TypeError
     let isMatch = false;
     if (dbPassword.startsWith('$2')) {
       try {
@@ -174,10 +171,9 @@ router.post('/login', async (req, res) => {
       }
     }
 
-    // Fallback check for legacy plain text passwords
-    const isPlainTextMatch = dbPassword === inputPassword;
+    const isPlaintextMatch = dbPassword === inputPassword;
 
-    if (!isMatch && !isPlainTextMatch) {
+    if (!isMatch && !isPlaintextMatch) {
       return res.status(401).json({
         success: false,
         message: 'Invalid credentials. Please check your phone number and password.',
@@ -199,7 +195,6 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // Generate JWT Token
     const token = jwt.sign(
       { userId: user._id, role: user.role, phone: user.phone },
       process.env.JWT_SECRET || 'fallback_secret_key',
@@ -229,9 +224,9 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// =========================================================
+// ================================================================
 // 3. ADMIN VERIFICATION ENDPOINT (/api/auth/admin/verify)
-// =========================================================
+// ================================================================
 router.post('/admin/verify', async (req, res) => {
   try {
     const { passcode, adminPasscode } = req.body || {};
@@ -266,9 +261,9 @@ router.post('/admin/verify', async (req, res) => {
   }
 });
 
-// =========================================================
+// ================================================================
 // 4. RESET PASSWORD ENDPOINT (/api/auth/reset-password)
-// =========================================================
+// ================================================================
 router.post('/reset-password', async (req, res) => {
   try {
     const { phoneNumber, phone, idNumber, tscNumber, newPassword } = req.body || {};
@@ -286,23 +281,21 @@ router.post('/reset-password', async (req, res) => {
       });
     }
 
-    // Match user by Phone, ID/Passport, and TSC Number simultaneously
     const user = await User.findOne({
       $and: [
         { $or: [{ phone: cleanPhone }, { phoneNumber: cleanPhone }] },
         { $or: [{ nationalId: cleanId }, { idNumber: cleanId }] },
-        { tscNumber: cleanTsc }
-      ]
+        { tscNumber: cleanTsc },
+      ],
     });
 
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'Verification failed. Phone number, ID number, and TSC number do not match our records.',
+        message: 'Verification failed. Phone number, ID number, and TSC number do not match records.',
       });
     }
 
-    // Hash the new password securely
     const salt = await bcrypt.genSalt(10);
     user.password = await bcrypt.hash(cleanPassword, salt);
     await user.save();
