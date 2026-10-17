@@ -1,0 +1,20 @@
+const mongoose = require('mongoose');
+
+const SubjectSchema = new mongoose.Schema({
+  name: { 
+    type: String, 
+    required: true, 
+    unique: true,
+    trim: true 
+  },
+  category: { 
+    type: String, 
+    default: 'General' 
+  }, // Optional: to group them like Sciences, Humanities, Technical, etc.
+  isActive: { 
+    type: Boolean, 
+    default: true 
+  }
+}, { timestamps: true });
+
+module.exports = mongoose.model('Subject', SubjectSchema);
