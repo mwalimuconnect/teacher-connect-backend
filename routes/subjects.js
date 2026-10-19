@@ -43,14 +43,23 @@ const DEFAULT_KENYAN_SUBJECTS = [
 ];
 
 // =========================================================
-// INITIALIZE / SEED DEFAULT SUBJECTS ON STARTUP (Optional Helper)
+// INITIALIZE / SEED DEFAULT SUBJECTS ON STARTUP
+// Uses $set so all default subjects are force-synced in MongoDB
 // =========================================================
 const seedDefaultSubjects = async () => {
   try {
     for (const subj of DEFAULT_KENYAN_SUBJECTS) {
       await Subject.updateOne(
         { name: subj.name },
-        { $setOnInsert: { name: subj.name, category: subj.category, isActive: true } },
+        { 
+          $set: { 
+            category: subj.category, 
+            isActive: true 
+          },
+          $setOnInsert: { 
+            name: subj.name 
+          } 
+        },
         { upsert: true }
       );
     }
