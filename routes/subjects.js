@@ -44,25 +44,27 @@ const DEFAULT_KENYAN_SUBJECTS = [
 
 // =========================================================
 // INITIALIZE / SEED DEFAULT SUBJECTS ON STARTUP
-// Uses $set so all default subjects are force-synced in MongoDB
+// Wipes existing truncated list once and force-seeds all 29 entries
 // =========================================================
 const seedDefaultSubjects = async () => {
   try {
+    // Clear out old truncated records to guarantee a clean sync
+    await Subject.deleteMany({});
+
     for (const subj of DEFAULT_KENYAN_SUBJECTS) {
       await Subject.updateOne(
         { name: subj.name },
         { 
           $set: { 
+            name: subj.name,
             category: subj.category, 
             isActive: true 
-          },
-          $setOnInsert: { 
-            name: subj.name 
           } 
         },
         { upsert: true }
       );
     }
+    console.log('Successfully seeded all 29 Kenyan subject combinations!');
   } catch (err) {
     console.error('Error seeding default subjects:', err);
   }
