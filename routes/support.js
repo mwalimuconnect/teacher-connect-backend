@@ -39,20 +39,49 @@ router.post('/submit', async (req, res) => {
 });
 
 // =========================================================
-// 2. FETCH ALL SUPPORT TICKETS (/api/support/all)
+// 2. FETCH ALL SUPPORT TICKETS (/api/support/all & /api/support)
 // =========================================================
-router.get('/all', async (req, res) => {
+router.get(['/all', '/'], async (req, res) => {
   try {
     const tickets = await SupportTicket.find().sort({ createdAt: -1 });
     return res.status(200).json({
       success: true,
       data: tickets,
+      tickets: tickets
     });
   } catch (error) {
     console.error('Fetch Support Tickets Error:', error);
     return res.status(500).json({
       success: false,
       message: 'Server error fetching tickets.',
+    });
+  }
+});
+
+// =========================================================
+// 3. DELETE / DISMISS SUPPORT TICKET (/api/support/:id)
+// =========================================================
+router.delete('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deletedTicket = await SupportTicket.findByIdAndDelete(id);
+
+    if (!deletedTicket) {
+      return res.status(404).json({
+        success: false,
+        message: 'Support ticket not found.'
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Support ticket dismissed successfully.'
+    });
+  } catch (error) {
+    console.error('Delete Support Ticket Error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error deleting ticket.'
     });
   }
 });
