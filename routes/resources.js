@@ -98,11 +98,11 @@ router.get('/category/:category', async (req, res) => {
 });
 
 // ============================================================================
-// 3. GET /api/resources/download/:id - File Download Proxy (With ZIP Support)
+// 3. GET /api/resources/download/:id - File Download Proxy (With PDF Preview Bypass)
 // ============================================================================
 router.get('/download/:id', async (req, res) => {
   try {
-    const { isAdmin } = req.query;
+    const { isAdmin, preview } = req.query;
     const resource = await Resource.findById(req.params.id);
 
     if (!resource) {
@@ -114,27 +114,34 @@ router.get('/download/:id', async (req, res) => {
       return res.status(400).json({ success: false, message: 'No file URL attached to this resource' });
     }
 
-    // Check payment & admin authorization
+    // Check payment & admin authorization (Allow access if preview=true or admin)
     const isFree = !resource.price || resource.price <= 0;
     const hasAdminAccess = isAdmin === 'true' || isAdmin === true;
     const isPaid = resource.isPaid === true;
+    const isPreview = preview === 'true' || preview === true;
 
-    if (!isFree && !hasAdminAccess && !isPaid) {
+    if (!isFree && !hasAdminAccess && !isPaid && !isPreview) {
       return res.status(403).json({
         success: false,
         message: 'Payment required to download this resource.',
       });
     }
 
-    // Detect file extension (including .zip)
-    let extension = '.docx';
-    if (fileUrl.includes('.zip')) extension = '.zip';
-    else if (fileUrl.includes('.xlsx')) extension = '.xlsx';
-    else if (fileUrl.includes('.pdf')) extension = '.pdf';
-    else if (fileUrl.includes('.ppt') || fileUrl.includes('.pptx')) extension = '.pptx';
+    // Detect file extension accurately
+    const lowerUrl = fileUrl.toLowerCase();
+    let extension = '.pdf';
+
+    if (lowerUrl.includes('.zip')) extension = '.zip';
+    else if (lowerUrl.includes('.xlsx')) extension = '.xlsx';
+    else if (lowerUrl.includes('.docx') || lowerUrl.includes('.doc')) extension = '.docx';
+    else if (lowerUrl.includes('.ppt') || lowerUrl.includes('.pptx')) extension = '.pptx';
+    else if (lowerUrl.includes('.pdf')) extension = '.pdf';
 
     const safeFilename = resource.title.replace(/[^a-zA-Z0-9_\-]/g, '_');
-    res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}${extension}"`);
+    
+    // Use 'inline' disposition for preview so browsers/viewers handle it properly
+    const disposition = isPreview ? 'inline' : 'attachment';
+    res.setHeader('Content-Disposition', `${disposition}; filename="${safeFilename}${extension}"`);
     
     if (extension === '.zip') {
       res.setHeader('Content-Type', 'application/zip');
