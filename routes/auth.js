@@ -314,4 +314,143 @@ router.post('/reset-password', async (req, res) => {
   }
 });
 
+// ================================================================
+// 5. GET USER PROFILE ENDPOINT (/api/auth/profile)
+// ================================================================
+router.get('/profile', async (req, res) => {
+  try {
+    const userId = req.query.userId || (req.user && req.user.userId);
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'User ID is required to fetch profile.',
+      });
+    }
+
+    const user = await User.findById(userId).select('-password');
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User profile not found.',
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      user: {
+        id: user._id,
+        fullName: user.fullName,
+        phone: user.phone,
+        // Non-editable Identity Fields
+        tscNumber: user.tscNumber || '',
+        nationalId: user.nationalId || user.idNumber || '',
+        // Editable Profile Fields
+        currentSchool: user.currentSchool || '',
+        county: user.county || '',
+        subCounty: user.subCounty || '',
+        subjects: user.subjects || [],
+        role: user.role,
+        status: user.status,
+        profilePhotoUrl: user.profilePhotoUrl || '',
+      },
+    });
+  } catch (error) {
+    console.error('Fetch Profile Error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error fetching user profile.',
+      error: error.message,
+    });
+  }
+});
+
+// ================================================================
+// 6. UPDATE USER PROFILE ENDPOINT (/api/auth/profile)
+// ================================================================
+router.put('/profile', async (req, res) => {
+  try {
+    const {
+      userId,
+      fullName,
+      phone,
+      phoneNumber,
+      currentSchool,
+      county,
+      subCounty,
+      subjects,
+      profilePhotoUrl,
+    } = req.body || {};
+
+    const targetUserId = userId || (req.user && req.user.userId);
+
+    if (!targetUserId) {
+      return res.status(400).json({
+        success: false,
+        message: 'User ID is required to update profile.',
+      });
+    }
+
+    const user = await User.findById(targetUserId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found.',
+      });
+    }
+
+    // Phone validation if phone is being updated
+    const rawPhone = phoneNumber || phone;
+    if (rawPhone) {
+      const cleanPhone = String(rawPhone).replace(/\s+/g, '');
+      const kenyanPhoneRegex = /^(07|01|\+254)[0-9]{8}$/;
+      if (!kenyanPhoneRegex.test(cleanPhone)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Please enter a valid Kenyan phone number.',
+        });
+      }
+      user.phone = cleanPhone;
+    }
+
+    // Explicitly update ONLY permitted fields
+    if (fullName !== undefined) user.fullName = String(fullName).trim();
+    if (currentSchool !== undefined) user.currentSchool = String(currentSchool).trim();
+    if (county !== undefined) user.county = String(county).trim();
+    if (subCounty !== undefined) user.subCounty = String(subCounty).trim();
+    if (subjects !== undefined) user.subjects = subjects;
+    if (profilePhotoUrl !== undefined) user.profilePhotoUrl = profilePhotoUrl;
+
+    // SECURITY NOTICE: tscNumber and nationalId/idNumber are intentionally excluded
+    // to prevent tampering with official teacher verification records.
+
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Profile updated successfully!',
+      user: {
+        id: user._id,
+        fullName: user.fullName,
+        phone: user.phone,
+        tscNumber: user.tscNumber,
+        nationalId: user.nationalId,
+        currentSchool: user.currentSchool,
+        county: user.county,
+        subCounty: user.subCounty,
+        subjects: user.subjects,
+        role: user.role,
+        profilePhotoUrl: user.profilePhotoUrl,
+      },
+    });
+  } catch (error) {
+    console.error('Update Profile Error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error updating profile.',
+      error: error.message,
+    });
+  }
+});
+
 module.exports = router;
