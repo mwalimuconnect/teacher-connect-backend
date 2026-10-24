@@ -32,7 +32,6 @@ const formatListing = (item) => {
   const schoolVal = item.currentSchool || item.school || item.schoolName || '';
   const nameVal = item.fullName || item.teacherName || item.userName || (item.user && item.user.fullName) || 'N/A';
   
-  // Smart subject resolution with dynamic fallback scanning
   const dynamicSubjectFound = findDynamicField(doc, ['subject', 'comb', 'teach', 'spec']);
   const subjectsVal = item.subjectCombination || item.subjects || item.subject || dynamicSubjectFound || 'N/A';
 
@@ -153,7 +152,7 @@ router.get('/members', async (req, res) => {
     const formattedMembers = members.map((member) => {
       const doc = member._doc || member;
       
-      // Dynamic fallback scanner searches any property matching keywords
+      // Dynamic fallback scanner searches any property matching keywords in User docs
       const dynamicSubject = findDynamicField(doc, ['subject', 'comb', 'teach', 'spec']);
 
       let rawSubject = 
@@ -170,7 +169,6 @@ router.get('/members', async (req, res) => {
         dynamicSubject ||
         'N/A';
 
-      // If stored as an array (e.g., ['English', 'Literature']), join them nicely
       if (Array.isArray(rawSubject)) {
         rawSubject = rawSubject.filter(Boolean).join(', ');
       }
