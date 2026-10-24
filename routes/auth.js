@@ -392,6 +392,7 @@ router.put('/profile', async (req, res) => {
       subjectCombination,
       subjects,
       profilePhotoUrl,
+      profilePhoto, // Added to catch either key from frontend payloads
     } = req.body || {};
 
     const targetUserId = userId || (req.user && req.user.userId);
@@ -426,6 +427,7 @@ router.put('/profile', async (req, res) => {
     }
 
     const newSubject = subjectCombination || subjects;
+    const resolvedPhoto = profilePhotoUrl || profilePhoto;
 
     // Explicitly update permitted fields
     if (fullName !== undefined) user.fullName = String(fullName).trim();
@@ -436,10 +438,12 @@ router.put('/profile', async (req, res) => {
       user.subjectCombination = String(newSubject).trim();
       user.subjects = String(newSubject).trim();
     }
-    if (profilePhotoUrl !== undefined) user.profilePhotoUrl = profilePhotoUrl;
-
-    // SECURITY NOTICE: tscNumber and nationalId/idNumber are intentionally excluded
-    // to prevent tampering with official teacher verification records.
+    
+    // Save photo to both keys for complete data consistency across the app
+    if (resolvedPhoto !== undefined) {
+      user.profilePhotoUrl = resolvedPhoto;
+      user.profilePhoto = resolvedPhoto;
+    }
 
     await user.save();
 
@@ -458,6 +462,7 @@ router.put('/profile', async (req, res) => {
         subjectCombination: user.subjectCombination,
         role: user.role,
         profilePhotoUrl: user.profilePhotoUrl,
+        profilePhoto: user.profilePhoto,
       },
     });
   } catch (error) {
