@@ -129,10 +129,29 @@ router.get('/members', async (req, res) => {
       .select('-password')
       .sort({ createdAt: -1 });
 
+    // Format members to ensure subject combinations are properly formatted strings
+    const formattedMembers = members.map((member) => {
+      const doc = member._doc || member;
+      
+      // Handle subjects whether stored as string, array, or alternative keys
+      let rawSubject = member.subjectCombination || member.subject || member.subjects || 'N/A';
+      if (Array.isArray(rawSubject)) {
+        rawSubject = rawSubject.filter(Boolean).join(', ');
+      }
+      const subjectStr = (rawSubject && String(rawSubject).trim().length > 0) ? String(rawSubject).trim() : 'N/A';
+
+      return {
+        ...doc,
+        subjectCombination: subjectStr,
+        subjects: subjectStr,
+        subject: subjectStr,
+      };
+    });
+
     return res.status(200).json({
       success: true,
-      count: members.length,
-      members,
+      count: formattedMembers.length,
+      members: formattedMembers,
     });
   } catch (error) {
     console.error('Error fetching registered members:', error);
