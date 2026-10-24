@@ -468,18 +468,18 @@ router.put('/update-photo/:userId', async (req, res) => {
       });
     }
 
-    const updatedUser = await User.findByIdAndUpdate(
-      userId,
-      { profilePhotoUrl: profilePhoto },
-      { new: true }
-    );
-
+    const updatedUser = await User.findById(userId);
     if (!updatedUser) {
       return res.status(404).json({
         success: false,
         message: 'User not found.',
       });
     }
+
+    // Save under both keys to ensure database persistence consistency
+    updatedUser.profilePhotoUrl = profilePhoto;
+    updatedUser.profilePhoto = profilePhoto;
+    await updatedUser.save();
 
     return res.status(200).json({
       success: true,
@@ -495,5 +495,5 @@ router.put('/update-photo/:userId', async (req, res) => {
     });
   }
 });
-
+    
 module.exports = router;
