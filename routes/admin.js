@@ -5,24 +5,6 @@ const User = require('../models/User');
 const SupportTicket = require('../models/SupportTicket');
 const Announcement = require('../models/Announcement');
 
-// Helper to find any key dynamically containing specific keywords
-const findDynamicField = (doc, keywords) => {
-  if (!doc) return null;
-  for (const key of Object.keys(doc)) {
-    const lowerKey = key.toLowerCase();
-    if (keywords.some(kw => lowerKey.includes(kw)) && doc[key]) {
-      const val = doc[key];
-      if (typeof val === 'string' && val.trim().length > 0 && val.toUpperCase() !== 'N/A') {
-        return val.trim();
-      }
-      if (Array.isArray(val) && val.length > 0) {
-        return val.filter(Boolean).join(', ');
-      }
-    }
-  }
-  return null;
-};
-
 // Helper to standardize listing object structures for Flutter client
 const formatListing = (item) => {
   if (!item) return null;
@@ -31,9 +13,7 @@ const formatListing = (item) => {
   const phoneVal = item.phone || item.contactPhone || item.phoneNumber || '';
   const schoolVal = item.currentSchool || item.school || item.schoolName || '';
   const nameVal = item.fullName || item.teacherName || item.userName || (item.user && item.user.fullName) || 'N/A';
-  
-  const dynamicSubjectFound = findDynamicField(doc, ['subject', 'comb', 'teach', 'spec']);
-  const subjectsVal = item.subjectCombination || item.subjects || item.subject || dynamicSubjectFound || 'N/A';
+  const subjectsVal = item.subjectCombination || item.subjects || item.subject || 'N/A';
 
   // Extract TSC Number across possible property names
   let tscVal = item.tscNumber || item.tscNo || item.tsc || item.tsc_number || (item.user && item.user.tscNumber) || '';
@@ -149,18 +129,10 @@ router.get('/members', async (req, res) => {
       .select('-password')
       .sort({ createdAt: -1 });
 
-    // DEBUG LOG: Prints the exact keys of the first user document to your Vercel logs
-    if (members.length > 0) {
-      const sample = members[0]._doc || members[0];
-      console.log('=== DEBUG USER KEYS ===', Object.keys(sample));
-      console.log('=== SAMPLE USER DATA ===', JSON.stringify(sample, null, 2));
-    }
-
     const formattedMembers = members.map((member) => {
       const doc = member._doc || member;
       
-      const dynamicSubject = findDynamicField(doc, ['subject', 'comb', 'teach', 'spec']);
-
+      // Check every possible field name where subjects might be stored
       let rawSubject = 
         member.subjectCombination || 
         member.subjects || 
@@ -172,9 +144,9 @@ router.get('/members', async (req, res) => {
         doc.subjects ||
         doc.subject ||
         doc.teachingSubjects ||
-        dynamicSubject ||
         'N/A';
 
+      // If stored as an array (e.g., ['English', 'Literature']), join them nicely
       if (Array.isArray(rawSubject)) {
         rawSubject = rawSubject.filter(Boolean).join(', ');
       }
@@ -408,3 +380,4 @@ router.post('/announcement', async (req, res) => {
 });
 
 module.exports = router;
+                
