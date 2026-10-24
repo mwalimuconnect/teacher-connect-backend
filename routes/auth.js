@@ -453,4 +453,47 @@ router.put('/profile', async (req, res) => {
   }
 });
 
+// ================================================================
+// 7. UPDATE PROFILE PHOTO ENDPOINT (/api/auth/update-photo/:userId)
+// ================================================================
+router.put('/update-photo/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { profilePhoto } = req.body;
+
+    if (!userId || !profilePhoto) {
+      return res.status(400).json({
+        success: false,
+        message: 'User ID and profile photo URL are required.',
+      });
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { profilePhotoUrl: profilePhoto },
+      { new: true }
+    );
+
+    if (!updatedUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found.',
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Profile photo updated successfully!',
+      profilePhoto: updatedUser.profilePhotoUrl,
+    });
+  } catch (error) {
+    console.error('Update Photo Error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error updating profile photo.',
+      error: error.message,
+    });
+  }
+});
+
 module.exports = router;
