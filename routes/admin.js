@@ -139,9 +139,11 @@ router.get('/members', async (req, res) => {
         member.subject || 
         member.teachingSubjects || 
         member.combination || 
+        member.subjectsTaught ||
         doc.subjectCombination ||
         doc.subjects ||
         doc.subject ||
+        doc.teachingSubjects ||
         'N/A';
 
       // If stored as an array (e.g., ['English', 'Literature']), join them nicely
