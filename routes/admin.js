@@ -129,16 +129,29 @@ router.get('/members', async (req, res) => {
       .select('-password')
       .sort({ createdAt: -1 });
 
-    // Format members to ensure subject combinations are properly formatted strings
     const formattedMembers = members.map((member) => {
       const doc = member._doc || member;
       
-      // Handle subjects whether stored as string, array, or alternative keys
-      let rawSubject = member.subjectCombination || member.subject || member.subjects || 'N/A';
+      // Check every possible field name where subjects might be stored
+      let rawSubject = 
+        member.subjectCombination || 
+        member.subjects || 
+        member.subject || 
+        member.teachingSubjects || 
+        member.combination || 
+        doc.subjectCombination ||
+        doc.subjects ||
+        doc.subject ||
+        'N/A';
+
+      // If stored as an array (e.g., ['English', 'Literature']), join them nicely
       if (Array.isArray(rawSubject)) {
         rawSubject = rawSubject.filter(Boolean).join(', ');
       }
-      const subjectStr = (rawSubject && String(rawSubject).trim().length > 0) ? String(rawSubject).trim() : 'N/A';
+      
+      const subjectStr = (rawSubject && String(rawSubject).trim().length > 0 && String(rawSubject).trim().toUpperCase() !== 'N/A') 
+        ? String(rawSubject).trim() 
+        : 'N/A';
 
       return {
         ...doc,
