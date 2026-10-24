@@ -125,28 +125,39 @@ router.get('/stats', async (req, res) => {
 // =========================================================
 router.get('/members', async (req, res) => {
   try {
-    const members = await User.find()
-      .select('-password')
-      .sort({ createdAt: -1 });
+    const [members, listings] = await Promise.all([
+      User.find().select('-password').sort({ createdAt: -1 }),
+      Listing.find()
+    ]);
+
+    // Build a lookup dictionary mapping TSC numbers and phones to their listing subjects
+    const listingSubjectMap = {};
+    listings.forEach(l => {
+      const subj = l.subjectCombination || l.subjects || l.subject;
+      if (subj && typeof subj === 'string' && subj.trim().toUpperCase() !== 'N/A') {
+        if (l.tscNumber) listingSubjectMap[l.tscNumber.trim()] = subj.trim();
+        if (l.phone) listingSubjectMap[l.phone.trim()] = subj.trim();
+        if (l.phoneNumber) listingSubjectMap[l.phoneNumber.trim()] = subj.trim();
+      }
+    });
 
     const formattedMembers = members.map((member) => {
       const doc = member._doc || member;
       
-      // Check every possible field name where subjects might be stored
+      // Check user document first, then fallback to matching listings via TSC number or phone
       let rawSubject = 
         member.subjectCombination || 
         member.subjects || 
         member.subject || 
         member.teachingSubjects || 
-        member.combination || 
-        member.subjectsTaught ||
         doc.subjectCombination ||
         doc.subjects ||
         doc.subject ||
-        doc.teachingSubjects ||
+        listingSubjectMap[doc.tscNumber?.trim()] ||
+        listingSubjectMap[doc.phone?.trim()] ||
+        listingSubjectMap[doc.phoneNumber?.trim()] ||
         'N/A';
 
-      // If stored as an array (e.g., ['English', 'Literature']), join them nicely
       if (Array.isArray(rawSubject)) {
         rawSubject = rawSubject.filter(Boolean).join(', ');
       }
