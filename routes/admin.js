@@ -149,10 +149,16 @@ router.get('/members', async (req, res) => {
       .select('-password')
       .sort({ createdAt: -1 });
 
+    // DEBUG LOG: Prints the exact keys of the first user document to your Vercel logs
+    if (members.length > 0) {
+      const sample = members[0]._doc || members[0];
+      console.log('=== DEBUG USER KEYS ===', Object.keys(sample));
+      console.log('=== SAMPLE USER DATA ===', JSON.stringify(sample, null, 2));
+    }
+
     const formattedMembers = members.map((member) => {
       const doc = member._doc || member;
       
-      // Dynamic fallback scanner searches any property matching keywords in User docs
       const dynamicSubject = findDynamicField(doc, ['subject', 'comb', 'teach', 'spec']);
 
       let rawSubject = 
@@ -211,14 +217,14 @@ router.get('/pending-approvals', async (req, res) => {
 
       Listing.find({
         $and: [
-          { $or: [{ category: { $regex: /seeker|seeking/i } }, { type: {$regex: /seeker|seeking|job/i } }] },
+          { $or: [{ category: { $regex: /seeker\vert{}vert\vert{}seeking/i } }, { type: {$regex: /seeker|seeking|job/i } }] },
           { $or: [{ status: { $regex: /^pending$/i } }, { isApproved: false }] }
         ]
       }).sort({ createdAt: -1 }),
 
       Listing.find({
         $and: [
-          { $or: [{ category: { $regex: /vacancy|job/i } }, { type: {$regex: /vacancy|job/i } }] },
+          { $or: [{ category: { $regex: /vacancy\vert{}vert\vert{}job/i } }, { type: {$regex: /vacancy|job/i } }] },
           { $or: [{ status: { $regex: /^pending$/i } }, { isApproved: false }] }
         ]
       }).sort({ createdAt: -1 }),
