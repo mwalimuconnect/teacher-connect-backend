@@ -53,6 +53,63 @@ const runTscMigration = async () => {
   }
 };
 
+// Migration function to populate missing subject combinations on existing User records
+const runSubjectMigration = async () => {
+  try {
+    const Listing = require('./models/Listing');
+    const User = require('./models/User');
+
+    // Find users missing a valid subjectCombination
+    const usersMissingSubjects = await User.find({
+      $or: [
+        { subjectCombination: { $exists: false } },
+        { subjectCombination: '' },
+        { subjectCombination: 'N/A' },
+        { subjects: { $exists: false } },
+      ],
+    });
+
+    if (usersMissingSubjects.length === 0) return;
+
+    // Fetch all listings to build a quick subject reference map
+    const listings = await Listing.find();
+    let updatedUsersCount = 0;
+
+    for (let user of usersMissingSubjects) {
+      // Find matching listing by userId, tscNumber, or phone
+      const matchingListing = listings.find((l) => {
+        const isUserIdMatch = String(l.userId || l.user || '') === String(user._id);
+        const isTscMatch = user.tscNumber && l.tscNumber && String(l.tscNumber).trim() === String(user.tscNumber).trim();
+        const isPhoneMatch = user.phone && (l.phone || l.phoneNumber) && 
+          String(l.phone || l.phoneNumber).trim() === String(user.phone).trim();
+
+        return isUserIdMatch || isTscMatch || isPhoneMatch;
+      });
+
+      if (matchingListing) {
+        const foundSubject = matchingListing.subjectCombination || 
+                             matchingListing.subjects || 
+                             matchingListing.subject;
+
+        if (foundSubject && String(foundSubject).trim().toUpperCase() !== 'N/A') {
+          const cleanSubject = String(foundSubject).trim();
+          user.subjectCombination = cleanSubject;
+          user.subjects = cleanSubject;
+          user.subject = cleanSubject;
+          await user.save();
+          updatedUsersCount++;
+        }
+      }
+    }
+
+    if (updatedUsersCount > 0) {
+      console.log(`Subject Migration completed: ${updatedUsersCount} user profile(s) updated with subject combinations.`);
+    }
+  } catch (err) {
+    console.error('Subject Migration error:', err.message);
+  }
+};
+
 const connectDB = async () => {
   if (isConnected) return;
 
@@ -65,8 +122,9 @@ const connectDB = async () => {
     isConnected = db.connections[0].readyState === 1;
     console.log('MongoDB connected successfully');
     
-    // Run migration script once database connection is established
+    // Run database migration scripts once connection is established
     await runTscMigration();
+    await runSubjectMigration();
   } catch (err) {
     console.error('MongoDB connection error:', err.message);
   }
