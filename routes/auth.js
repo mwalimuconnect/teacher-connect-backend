@@ -16,6 +16,8 @@ router.post('/register', async (req, res) => {
       idNumber,
       phone,
       phoneNumber,
+      subjectCombination,
+      subjects,
       currentSchool,
       role,
       password,
@@ -25,17 +27,19 @@ router.post('/register', async (req, res) => {
     const rawPhone = phoneNumber || phone || '';
     const rawId = nationalId || idNumber || '';
     const rawTsc = tscNumber || '';
+    const rawSubject = subjectCombination || subjects || '';
 
     const cleanPhone = String(rawPhone).replace(/\s+/g, '');
     const cleanTsc = String(rawTsc).trim();
     const cleanId = String(rawId).trim();
     const cleanFullName = String(fullName || '').trim();
+    const cleanSubjectCombo = String(rawSubject).trim();
     const cleanPassword = String(password || '');
 
-    if (!cleanFullName || !cleanPhone || !cleanPassword) {
+    if (!cleanFullName || !cleanPhone || !cleanPassword || !cleanSubjectCombo) {
       return res.status(400).json({
         success: false,
-        message: 'Full Name, Phone Number, and Password are required.',
+        message: 'Full Name, Phone Number, Subject Combination, and Password are required.',
       });
     }
 
@@ -81,6 +85,9 @@ router.post('/register', async (req, res) => {
       tscNumber: cleanTsc,
       phone: cleanPhone,
       nationalId: cleanId,
+      subjectCombination: cleanSubjectCombo,
+      subjects: cleanSubjectCombo,
+      subject: cleanSubjectCombo,
       currentSchool: currentSchool ? String(currentSchool).trim() : '',
       role: role || 'Member Teacher',
       password: hashedPassword,
@@ -105,6 +112,7 @@ router.post('/register', async (req, res) => {
           id: user._id,
           fullName: user.fullName,
           phone: user.phone,
+          subjectCombination: user.subjectCombination,
           role: user.role,
           status: user.status,
         },
@@ -120,6 +128,7 @@ router.post('/register', async (req, res) => {
         fullName: user.fullName,
         phone: user.phone,
         tscNumber: user.tscNumber,
+        subjectCombination: user.subjectCombination,
         role: user.role,
         status: user.status,
       },
@@ -209,6 +218,7 @@ router.post('/login', async (req, res) => {
         fullName: user.fullName,
         phone: user.phone,
         tscNumber: user.tscNumber,
+        subjectCombination: user.subjectCombination || user.subjects || '',
         role: user.role,
         status: user.status,
       },
@@ -349,7 +359,8 @@ router.get('/profile', async (req, res) => {
         currentSchool: user.currentSchool || '',
         county: user.county || '',
         subCounty: user.subCounty || '',
-        subjects: user.subjects || [],
+        subjectCombination: user.subjectCombination || user.subjects || '',
+        subjects: user.subjectCombination || user.subjects || '',
         role: user.role,
         status: user.status,
         profilePhotoUrl: user.profilePhotoUrl || '',
@@ -378,6 +389,7 @@ router.put('/profile', async (req, res) => {
       currentSchool,
       county,
       subCounty,
+      subjectCombination,
       subjects,
       profilePhotoUrl,
     } = req.body || {};
@@ -413,12 +425,17 @@ router.put('/profile', async (req, res) => {
       user.phone = cleanPhone;
     }
 
-    // Explicitly update ONLY permitted fields
+    const newSubject = subjectCombination || subjects;
+
+    // Explicitly update permitted fields
     if (fullName !== undefined) user.fullName = String(fullName).trim();
     if (currentSchool !== undefined) user.currentSchool = String(currentSchool).trim();
     if (county !== undefined) user.county = String(county).trim();
     if (subCounty !== undefined) user.subCounty = String(subCounty).trim();
-    if (subjects !== undefined) user.subjects = subjects;
+    if (newSubject !== undefined) {
+      user.subjectCombination = String(newSubject).trim();
+      user.subjects = String(newSubject).trim();
+    }
     if (profilePhotoUrl !== undefined) user.profilePhotoUrl = profilePhotoUrl;
 
     // SECURITY NOTICE: tscNumber and nationalId/idNumber are intentionally excluded
@@ -438,7 +455,7 @@ router.put('/profile', async (req, res) => {
         currentSchool: user.currentSchool,
         county: user.county,
         subCounty: user.subCounty,
-        subjects: user.subjects,
+        subjectCombination: user.subjectCombination,
         role: user.role,
         profilePhotoUrl: user.profilePhotoUrl,
       },
