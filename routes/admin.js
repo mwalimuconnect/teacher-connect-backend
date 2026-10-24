@@ -5,6 +5,24 @@ const User = require('../models/User');
 const SupportTicket = require('../models/SupportTicket');
 const Announcement = require('../models/Announcement');
 
+// Helper to find any key dynamically containing specific keywords
+const findDynamicField = (doc, keywords) => {
+  if (!doc) return null;
+  for (const key of Object.keys(doc)) {
+    const lowerKey = key.toLowerCase();
+    if (keywords.some(kw => lowerKey.includes(kw)) && doc[key]) {
+      const val = doc[key];
+      if (typeof val === 'string' && val.trim().length > 0 && val.toUpperCase() !== 'N/A') {
+        return val.trim();
+      }
+      if (Array.isArray(val) && val.length > 0) {
+        return val.filter(Boolean).join(', ');
+      }
+    }
+  }
+  return null;
+};
+
 // Helper to standardize listing object structures for Flutter client
 const formatListing = (item) => {
   if (!item) return null;
@@ -13,7 +31,10 @@ const formatListing = (item) => {
   const phoneVal = item.phone || item.contactPhone || item.phoneNumber || '';
   const schoolVal = item.currentSchool || item.school || item.schoolName || '';
   const nameVal = item.fullName || item.teacherName || item.userName || (item.user && item.user.fullName) || 'N/A';
-  const subjectsVal = item.subjectCombination || item.subjects || item.subject || 'N/A';
+  
+  // Smart subject resolution with dynamic fallback scanning
+  const dynamicSubjectFound = findDynamicField(doc, ['subject', 'comb', 'teach', 'spec']);
+  const subjectsVal = item.subjectCombination || item.subjects || item.subject || dynamicSubjectFound || 'N/A';
 
   // Extract TSC Number across possible property names
   let tscVal = item.tscNumber || item.tscNo || item.tsc || item.tsc_number || (item.user && item.user.tscNumber) || '';
@@ -132,7 +153,9 @@ router.get('/members', async (req, res) => {
     const formattedMembers = members.map((member) => {
       const doc = member._doc || member;
       
-      // Check every possible field name where subjects might be stored
+      // Dynamic fallback scanner searches any property matching keywords
+      const dynamicSubject = findDynamicField(doc, ['subject', 'comb', 'teach', 'spec']);
+
       let rawSubject = 
         member.subjectCombination || 
         member.subjects || 
@@ -144,6 +167,7 @@ router.get('/members', async (req, res) => {
         doc.subjects ||
         doc.subject ||
         doc.teachingSubjects ||
+        dynamicSubject ||
         'N/A';
 
       // If stored as an array (e.g., ['English', 'Literature']), join them nicely
@@ -189,14 +213,14 @@ router.get('/pending-approvals', async (req, res) => {
 
       Listing.find({
         $and: [
-          { $or: [{ category: { $regex: /seeker\vert{}vert\vert{}seeking/i } }, { type: {$regex: /seeker|seeking|job/i } }] },
+          { $or: [{ category: { $regex: /seeker|seeking/i } }, { type: {$regex: /seeker|seeking|job/i } }] },
           { $or: [{ status: { $regex: /^pending$/i } }, { isApproved: false }] }
         ]
       }).sort({ createdAt: -1 }),
 
       Listing.find({
         $and: [
-          { $or: [{ category: { $regex: /vacancy\vert{}vert\vert{}job/i } }, { type: {$regex: /vacancy|job/i } }] },
+          { $or: [{ category: { $regex: /vacancy|job/i } }, { type: {$regex: /vacancy|job/i } }] },
           { $or: [{ status: { $regex: /^pending$/i } }, { isApproved: false }] }
         ]
       }).sort({ createdAt: -1 }),
