@@ -28,6 +28,34 @@ const userSchema = new mongoose.Schema(
       default: '',
       trim: true,
     },
+    county: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    subCounty: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    subjectCombination: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    subjects: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    profilePhotoUrl: {
+      type: String,
+      default: '',
+    },
+    profilePhoto: {
+      type: String,
+      default: '',
+    },
     role: {
       type: String,
       default: 'Member Teacher',
