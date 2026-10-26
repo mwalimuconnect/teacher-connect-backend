@@ -175,6 +175,15 @@ app.get('/api/announcement/active', async (req, res) => {
   }
 });
 
+// App Version Check Endpoint for automated update verification
+app.get('/api/app-version', (req, res) => {
+  res.status(200).json({
+    latestVersion: "1.0.3",
+    forceUpdate: false,
+    storeUrl: "https://play.google.com/store/apps/details?id=com.teacherconnect.app"
+  });
+});
+
 // Health check endpoint
 app.get('/', (req, res) => {
   res.send('TeacherConnect API Server Running');
