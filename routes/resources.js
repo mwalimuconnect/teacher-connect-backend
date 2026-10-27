@@ -42,28 +42,36 @@ const formatResource = (item) => {
 };
 
 // ============================================================================
-// 1. GET /api/resources - Fetch all resources or filter by category
+// 1. GET /api/resources - Fetch all resources with filters (category, subject, form, search)
 // ============================================================================
 router.get('/', async (req, res) => {
   try {
-    const { category, search, form } = req.query;
+    const { category, subject, search, form } = req.query;
     let query = {};
 
+    // Filter by Category
     if (category && category.toLowerCase() !== 'all') {
       query.category = { $regex: new RegExp(category, 'i') };
     }
 
+    // Filter by Subject (Supports combined subjects like 'English / Literature')
+    if (subject && subject.toLowerCase() !== 'all') {
+      query.subject = { $regex: new RegExp(subject.trim(), 'i') };
+    }
+
+    // Filter by Search Title
     if (search) {
       query.title = { $regex: new RegExp(search, 'i') };
     }
 
+    // Filter by Form
     if (form && form.toLowerCase() !== 'all') {
       query.form = { $regex: new RegExp(form, 'i') };
     }
 
     let resources = await Resource.find(query).sort({ createdAt: -1 });
 
-    if (resources.length === 0 && (!category || category.toLowerCase() === 'all') && !search) {
+    if (resources.length === 0 && (!category || category.toLowerCase() === 'all') && !subject && !search) {
       return res.status(200).json(sampleResources.map(formatResource));
     }
 
@@ -185,10 +193,13 @@ router.post('/', async (req, res) => {
     const parsedPrice = parseFloat(price);
     const finalPrice = !isNaN(parsedPrice) && parsedPrice > 0 ? parsedPrice : 50;
 
+    // Clean up subject name (e.g., if dropdown passes "English / Literature", keep it clean)
+    const cleanSubject = subject ? subject.trim() : 'General';
+
     const newResource = new Resource({
       title,
-      category,
-      subject: subject || 'General',
+      category: category.trim(),
+      subject: cleanSubject,
       form: form || 'General',
       fileUrl,
       price: finalPrice,
