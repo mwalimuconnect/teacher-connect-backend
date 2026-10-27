@@ -25,17 +25,24 @@ router.post('/', upload.single('file'), async (req, res) => {
       return res.status(400).json({ error: 'No file was provided.' });
     }
 
+    // Validate Cloudinary configuration exists
+    if (!cloudinary.config().cloud_name || !cloudinary.config().api_key) {
+      console.error('Cloudinary configuration is missing environment variables.');
+      return res.status(500).json({ error: 'Server storage configuration error.' });
+    }
+
     const originalName = req.file.originalname;
-    const ext = path.extname(originalName);
-    const nameWithoutExt = path.parse(originalName).name;
+    const ext = path.extname(originalName).toLowerCase();
+    const nameWithoutExt = path.parse(originalName).name.replace(/[^a-zA-Z0-9]/g, '_');
 
     // Stream buffer directly to Cloudinary
     const uploadStream = cloudinary.uploader.upload_stream(
       {
-        resource_type: 'raw', // Mandatory for PDFs, DOCX, and office documents
+        resource_type: 'auto', // 'auto' lets Cloudinary choose between image, video, and raw correctly
         folder: 'teacher_resources',
-        public_id: `${nameWithoutExt}_${Date.now()}${ext}`,
+        public_id: `${nameWithoutExt}_${Date.now()}`,
         use_filename: true,
+        unique_filename: true,
       },
       (error, result) => {
         // Guard against Cloudinary failure
@@ -46,15 +53,9 @@ router.post('/', upload.single('file'), async (req, res) => {
           });
         }
 
-        // Force browser/device download header for raw document files
-        let downloadUrl = result.secure_url;
-        if (downloadUrl.includes('/upload/') && !downloadUrl.includes('/fl_attachment/')) {
-          downloadUrl = downloadUrl.replace('/upload/', '/upload/fl_attachment/');
-        }
-
         return res.status(200).json({
           success: true,
-          fileUrl: downloadUrl,
+          fileUrl: result.secure_url,
           public_id: result.public_id,
         });
       }
