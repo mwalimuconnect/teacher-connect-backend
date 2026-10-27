@@ -110,6 +110,22 @@ const runSubjectMigration = async () => {
   }
 };
 
+// Migration function to ensure all users have an explicit isApproved flag
+const runApprovalMigration = async () => {
+  try {
+    const User = require('./models/User');
+    const result = await User.updateMany(
+      { isApproved: { $exists: false } },
+      { $set: { isApproved: true } } // Sets existing legacy users to approved
+    );
+    if (result.modifiedCount > 0) {
+      console.log(`Approval Migration: ${result.modifiedCount} user record(s) initialized with isApproved status.`);
+    }
+  } catch (err) {
+    console.error('Approval Migration error:', err.message);
+  }
+};
+
 const connectDB = async () => {
   if (isConnected) return;
 
@@ -125,6 +141,7 @@ const connectDB = async () => {
     // Run database migration scripts once connection is established
     await runTscMigration();
     await runSubjectMigration();
+    await runApprovalMigration();
   } catch (err) {
     console.error('MongoDB connection error:', err.message);
   }
@@ -175,12 +192,12 @@ app.get('/api/announcement/active', async (req, res) => {
   }
 });
 
-// App Version Check Endpoint for automated update verification
+// App Version Check Endpoint serving direct GitHub APK download
 app.get('/api/app-version', (req, res) => {
   res.status(200).json({
     latestVersion: "1.0.3",
     forceUpdate: false,
-    storeUrl: "https://play.google.com/store/apps/details?id=com.teacherconnect.app"
+    storeUrl: "https://github.com/mwalimuconnect/TeacherConnect-/releases/download/v1.0.1/app-release.apk"
   });
 });
 
