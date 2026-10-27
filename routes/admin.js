@@ -79,7 +79,7 @@ router.get('/stats', async (req, res) => {
   try {
     const [totalListings, totalMembers, pendingUsers, pendingListings, totalSupportTickets] = await Promise.all([
       Listing.countDocuments(),
-      User.countDocuments(),
+      User.countDocuments({ isApproved: true }), // Only count approved members in total members
       User.countDocuments({
         $or: [
           { status: { $regex: /^pending$/i } },
@@ -121,12 +121,13 @@ router.get('/stats', async (req, res) => {
 });
 
 // =========================================================
-// 2. GET /api/admin/members - Fetch All Registered Members
+// 2. GET /api/admin/members - Fetch All Approved Registered Members
 // =========================================================
 router.get('/members', async (req, res) => {
   try {
+    // FIX: Only fetch users where isApproved is true (or status is approved)
     const [members, listings] = await Promise.all([
-      User.find().select('-password').sort({ createdAt: -1 }),
+      User.find({ isApproved: true }).select('-password').sort({ createdAt: -1 }),
       Listing.find()
     ]);
 
@@ -144,7 +145,6 @@ router.get('/members', async (req, res) => {
     const formattedMembers = members.map((member) => {
       const doc = member._doc || member;
       
-      // Check user document first, then fallback to matching listings via TSC number or phone
       let rawSubject = 
         member.subjectCombination || 
         member.subjects || 
@@ -200,14 +200,14 @@ router.get('/pending-approvals', async (req, res) => {
 
       Listing.find({
         $and: [
-          { $or: [{ category: { $regex: /seeker\vert{}vert\vert{}seeking/i } }, { type: {$regex: /seeker|seeking|job/i } }] },
+          { $or: [{ category: { $regex: /seeker|seeking/i } }, { type: {$regex: /seeker|seeking|job/i } }] },
           { $or: [{ status: { $regex: /^pending$/i } }, { isApproved: false }] }
         ]
       }).sort({ createdAt: -1 }),
 
       Listing.find({
         $and: [
-          { $or: [{ category: { $regex: /vacancy\vert{}vert\vert{}job/i } }, { type: {$regex: /vacancy|job/i } }] },
+          { $or: [{ category: { $regex: /vacancy|job/i } }, { type: {$regex: /vacancy|job/i } }] },
           { $or: [{ status: { $regex: /^pending$/i } }, { isApproved: false }] }
         ]
       }).sort({ createdAt: -1 }),
@@ -391,4 +391,3 @@ router.post('/announcement', async (req, res) => {
 });
 
 module.exports = router;
-                
