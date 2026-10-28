@@ -125,7 +125,6 @@ router.get('/stats', async (req, res) => {
 // =========================================================
 router.get('/members', async (req, res) => {
   try {
-    // FIX: Only fetch users where isApproved is true (or status is approved)
     const [members, listings] = await Promise.all([
       User.find({ isApproved: true }).select('-password').sort({ createdAt: -1 }),
       Listing.find()
@@ -168,6 +167,9 @@ router.get('/members', async (req, res) => {
 
       return {
         ...doc,
+        id: String(member._id || member.id || ''),
+        _id: String(member._id || member.id || ''),
+        canEditTsc: member.canEditTsc || false, // Pass permission flag to Flutter Admin UI
         subjectCombination: subjectStr,
         subjects: subjectStr,
         subject: subjectStr,
@@ -182,6 +184,41 @@ router.get('/members', async (req, res) => {
   } catch (error) {
     console.error('Error fetching registered members:', error);
     return res.status(500).json({ error: 'Failed to fetch registered members' });
+  }
+});
+
+// =========================================================
+// 2B. PUT /api/admin/grant-identity-edit/:id - Grant or Revoke Edit Permission
+// =========================================================
+router.put('/grant-identity-edit/:id', async (req, res) => {
+  try {
+    const { canEditTsc } = req.body; // Expects boolean (true to unlock, false to lock)
+    const userId = req.params.id;
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { canEditTsc: canEditTsc === true },
+      { new: true }
+    ).select('-password');
+
+    if (!updatedUser) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: updatedUser.canEditTsc
+        ? 'Identity edit permission granted successfully.'
+        : 'Identity edit permission revoked successfully.',
+      user: {
+        ...updatedUser._doc,
+        id: String(updatedUser._id),
+        canEditTsc: updatedUser.canEditTsc,
+      },
+    });
+  } catch (error) {
+    console.error('Toggle Identity Edit Error:', error);
+    return res.status(500).json({ success: false, error: error.message });
   }
 });
 
