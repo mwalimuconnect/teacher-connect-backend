@@ -1,4 +1,4 @@
-const express = require('express');
+Const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -9,7 +9,7 @@ const User = require('../models/User');
 // ================================================================
 router.post('/register', async (req, res) => {
   try {
-    const {
+    Const {
       fullName,
       tscNumber,
       nationalId,
@@ -24,122 +24,123 @@ router.post('/register', async (req, res) => {
       adminPasscode,
     } = req.body || {};
 
-    const rawPhone = phoneNumber || phone || '';
-    const rawId = nationalId || idNumber || '';
-    const rawTsc = tscNumber || '';
-    const rawSubject = subjectCombination || subjects || '';
+    Const rawPhone = phoneNumber || phone || '';
+    Const rawId = nationalId || idNumber || '';
+    Const rawTsc = tscNumber || '';
+    Const rawSubject = subjectCombination || subjects || '';
 
-    const cleanPhone = String(rawPhone).replace(/\s+/g, '');
-    const cleanTsc = String(rawTsc).trim();
-    const cleanId = String(rawId).trim();
-    const cleanFullName = String(fullName || '').trim();
-    const cleanSubjectCombo = String(rawSubject).trim();
-    const cleanPassword = String(password || '');
+    Const cleanPhone = String(rawPhone).replace(/\s+/g, '');
+    Const cleanTsc = String(rawTsc).trim();
+    Const cleanId = String(rawId).trim();
+    Const cleanFullName = String(fullName || '').trim();
+    Const cleanSubjectCombo = String(rawSubject).trim();
+    Const cleanPassword = String(password || '');
 
-    if (!cleanFullName || !cleanPhone || !cleanPassword || !cleanSubjectCombo) {
-      return res.status(400).json({
-        success: false,
-        message: 'Full Name, Phone Number, Subject Combination, and Password are required.',
+    If (!cleanFullName || !cleanPhone || !cleanPassword || !cleanSubjectCombo) {
+      Return res.status(400).json({
+        Success: false,
+        Message: 'Full Name, Phone Number, Subject Combination, and Password are required.',
       });
     }
 
-    const invalidPhones = ['0712345678', '0700000000'];
-    const kenyanPhoneRegex = /^(07|01|\+254)[0-9]{8}$/;
+    Const invalidPhones = ['0712345678', '0700000000'];
+    Const kenyanPhoneRegex = /^(07|01|\+254)[0-9]{8}$/;
 
-    if (invalidPhones.includes(cleanPhone) || !kenyanPhoneRegex.test(cleanPhone)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please enter a valid Kenyan phone number.',
+    If (invalidPhones.includes(cleanPhone) || !kenyanPhoneRegex.test(cleanPhone)) {
+      Return res.status(400).json({
+        Success: false,
+        Message: 'Please enter a valid Kenyan phone number.',
       });
     }
 
-    const isAdminRole = String(role || '').toLowerCase() === 'admin';
-    if (isAdminRole) {
-      const expectedPasscode = process.env.ADMIN_PASSCODE;
-      if (!expectedPasscode || String(adminPasscode) !== String(expectedPasscode)) {
-        return res.status(401).json({
-          success: false,
-          message: 'Invalid Admin Security Passcode.',
+    Const isAdminRole = String(role || '').toLowerCase() === 'admin';
+    If (isAdminRole) {
+      Const expectedPasscode = process.env.ADMIN_PASSCODE;
+      If (!expectedPasscode || String(adminPasscode) !== String(expectedPasscode)) {
+        Return res.status(401).json({
+          Success: false,
+          Message: 'Invalid Admin Security Passcode.',
         });
       }
     }
 
-    const orConditions = [{ phone: cleanPhone }];
-    if (cleanId) orConditions.push({ nationalId: cleanId });
-    if (cleanTsc) orConditions.push({ tscNumber: cleanTsc });
+    Const orConditions = [{ phone: cleanPhone }];
+    If (cleanId) orConditions.push({ nationalId: cleanId });
+    If (cleanTsc) orConditions.push({ tscNumber: cleanTsc });
 
-    const existingUser = await User.findOne({ $or: orConditions });
-    if (existingUser) {
-      return res.status(400).json({
-        success: false,
-        message: 'An account with these credentials already exists.',
+    Const existingUser = await User.findOne({ $or: orConditions });
+    If (existingUser) {
+      Return res.status(400).json({
+        Success: false,
+        Message: 'An account with these credentials already exists.',
       });
     }
 
     // Hash the password securely
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(cleanPassword, salt);
+    Const salt = await bcrypt.genSalt(10);
+    Const hashedPassword = await bcrypt.hash(cleanPassword, salt);
 
-    const user = new User({
-      fullName: cleanFullName,
-      tscNumber: cleanTsc,
-      phone: cleanPhone,
-      nationalId: cleanId,
-      subjectCombination: cleanSubjectCombo,
-      subjects: cleanSubjectCombo,
-      subject: cleanSubjectCombo,
-      currentSchool: currentSchool ? String(currentSchool).trim() : '',
-      role: role || 'Member Teacher',
-      password: hashedPassword,
-      status: isAdminRole ? 'approved' : 'pending',
-      isApproved: isAdminRole,
+    Const user = new User({
+      FullName: cleanFullName,
+      TscNumber: cleanTsc,
+      Phone: cleanPhone,
+      NationalId: cleanId,
+      SubjectCombination: cleanSubjectCombo,
+      Subjects: cleanSubjectCombo,
+      Subject: cleanSubjectCombo,
+      CurrentSchool: currentSchool ? String(currentSchool).trim() : '',
+      Role: role || 'Member Teacher',
+      Password: hashedPassword,
+      Status: isAdminRole ? 'approved' : 'pending',
+      IsApproved: isAdminRole,
+      CanEditTsc: false, // Default locked identity permission
     });
 
     await user.save();
 
     // Generate valid JWT token
-    const token = jwt.sign(
+    Const token = jwt.sign(
       { userId: user._id, role: user.role, phone: user.phone },
       process.env.JWT_SECRET || 'fallback_secret_key',
       { expiresIn: '30d' }
     );
 
-    if (user.status === 'pending' || !user.isApproved) {
-      return res.status(201).json({
-        success: true,
-        message: 'Registration successful. Account pending admin approval.',
-        user: {
-          id: user._id,
-          fullName: user.fullName,
-          phone: user.phone,
-          subjectCombination: user.subjectCombination,
-          role: user.role,
-          status: user.status,
+    If (user.status === 'pending' || !user.isApproved) {
+      Return res.status(201).json({
+        Success: true,
+        Message: 'Registration successful. Account pending admin approval.',
+        User: {
+          Id: user._id,
+          FullName: user.fullName,
+          Phone: user.phone,
+          SubjectCombination: user.subjectCombination,
+          Role: user.role,
+          Status: user.status,
         },
-        token,
+        Token,
       });
     }
 
-    return res.status(201).json({
-      success: true,
-      message: 'Registration successful!',
-      user: {
-        id: user._id,
-        fullName: user.fullName,
-        phone: user.phone,
-        tscNumber: user.tscNumber,
-        subjectCombination: user.subjectCombination,
-        role: user.role,
-        status: user.status,
+    Return res.status(201).json({
+      Success: true,
+      Message: 'Registration successful!',
+      User: {
+        Id: user._id,
+        FullName: user.fullName,
+        Phone: user.phone,
+        TscNumber: user.tscNumber,
+        SubjectCombination: user.subjectCombination,
+        Role: user.role,
+        Status: user.status,
       },
-      token,
+      Token,
     });
   } catch (error) {
-    console.error('Registration Error:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Server error during registration.',
-      error: error.message,
+    Console.error('Registration Error:', error);
+    Return res.status(500).json({
+      Success: false,
+      Message: 'Server error during registration.',
+      Error: error.message,
     });
   }
 });
@@ -148,88 +149,88 @@ router.post('/register', async (req, res) => {
 // 2. LOGIN ENDPOINT (/api/auth/login)
 // ================================================================
 router.post('/login', async (req, res) => {
-  try {
-    const { phone, phoneNumber, password } = req.body || {};
+  Try {
+    Const { phone, phoneNumber, password } = req.body || {};
 
-    const rawPhone = phoneNumber || phone || '';
-    const cleanPhone = String(rawPhone).replace(/\s+/g, '');
-    const inputPassword = String(password || '');
+    Const rawPhone = phoneNumber || phone || '';
+    Const cleanPhone = String(rawPhone).replace(/\s+/g, '');
+    Const inputPassword = String(password || '');
 
-    if (!cleanPhone || !inputPassword) {
-      return res.status(400).json({
-        success: false,
-        message: 'Phone number and password are required.',
+    If (!cleanPhone || !inputPassword) {
+      Return res.status(400).json({
+        Success: false,
+        Message: 'Phone number and password are required.',
       });
     }
 
-    const user = await User.findOne({ phone: cleanPhone });
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'Account not found. Please register first.',
+    Const user = await User.findOne({ phone: cleanPhone });
+    If (!user) {
+      Return res.status(404).json({
+        Success: false,
+        Message: 'Account not found. Please register first.',
       });
     }
 
-    const dbPassword = user.password ? String(user.password) : '';
-    let isMatch = false;
-    if (dbPassword.startsWith('$2')) {
-      try {
-        isMatch = await bcrypt.compare(inputPassword, dbPassword);
+    Const dbPassword = user.password ? String(user.password) : '';
+    Let isMatch = false;
+    If (dbPassword.startsWith('$2')) {
+      Try {
+        IsMatch = await bcrypt.compare(inputPassword, dbPassword);
       } catch (err) {
-        isMatch = false;
+        IsMatch = false;
       }
     }
 
-    const isPlaintextMatch = dbPassword === inputPassword;
+    Const isPlaintextMatch = dbPassword === inputPassword;
 
-    if (!isMatch && !isPlaintextMatch) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid credentials. Please check your phone number and password.',
+    If (!isMatch && !isPlaintextMatch) {
+      Return res.status(401).json({
+        Success: false,
+        Message: 'Invalid credentials. Please check your phone number and password.',
       });
     }
 
-    if (user.status === 'pending' || !user.isApproved) {
-      return res.status(403).json({
-        success: false,
-        message: 'Your account is pending admin approval.',
-        pendingApproval: true,
+    If (user.status === 'pending' || !user.isApproved) {
+      Return res.status(403).json({
+        Success: false,
+        Message: 'Your account is pending admin approval.',
+        PendingApproval: true,
       });
     }
 
-    if (user.status === 'rejected') {
-      return res.status(403).json({
-        success: false,
-        message: 'Your account registration was rejected.',
+    If (user.status === 'rejected') {
+      Return res.status(403).json({
+        Success: false,
+        Message: 'Your account registration was rejected.',
       });
     }
 
-    const token = jwt.sign(
+    Const token = jwt.sign(
       { userId: user._id, role: user.role, phone: user.phone },
       process.env.JWT_SECRET || 'fallback_secret_key',
       { expiresIn: '30d' }
     );
 
-    return res.status(200).json({
-      success: true,
-      message: 'Login successful!',
-      user: {
-        id: user._id,
-        fullName: user.fullName,
-        phone: user.phone,
-        tscNumber: user.tscNumber,
-        subjectCombination: user.subjectCombination || user.subjects || '',
-        role: user.role,
-        status: user.status,
+    Return res.status(200).json({
+      Success: true,
+      Message: 'Login successful!',
+      User: {
+        Id: user._id,
+        FullName: user.fullName,
+        Phone: user.phone,
+        TscNumber: user.tscNumber,
+        SubjectCombination: user.subjectCombination || user.subjects || '',
+        Role: user.role,
+        Status: user.status,
       },
-      token,
+      Token,
     });
   } catch (error) {
-    console.error('Login Error:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Server error during login processing.',
-      error: error.message,
+    Console.error('Login Error:', error);
+    Return res.status(500).json({
+      Success: false,
+      Message: 'Server error during login processing.',
+      Error: error.message,
     });
   }
 });
@@ -238,35 +239,35 @@ router.post('/login', async (req, res) => {
 // 3. ADMIN VERIFICATION ENDPOINT (/api/auth/admin/verify)
 // ================================================================
 router.post('/admin/verify', async (req, res) => {
-  try {
-    const { passcode, adminPasscode } = req.body || {};
-    const inputPasscode = String(passcode || adminPasscode || '');
+  Try {
+    Const { passcode, adminPasscode } = req.body || {};
+    Const inputPasscode = String(passcode || adminPasscode || '');
 
-    if (!inputPasscode) {
-      return res.status(400).json({
-        success: false,
-        message: 'Passcode is required.',
+    If (!inputPasscode) {
+      Return res.status(400).json({
+        Success: false,
+        Message: 'Passcode is required.',
       });
     }
 
-    const expectedPasscode = process.env.ADMIN_PASSCODE;
-    if (expectedPasscode && inputPasscode === String(expectedPasscode)) {
-      return res.status(200).json({
-        success: true,
-        message: 'Admin passcode verified successfully.',
+    Const expectedPasscode = process.env.ADMIN_PASSCODE;
+    If (expectedPasscode && inputPasscode === String(expectedPasscode)) {
+      Return res.status(200).json({
+        Success: true,
+        Message: 'Admin passcode verified successfully.',
       });
     } else {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid admin passcode.',
+      Return res.status(401).json({
+        Success: false,
+        Message: 'Invalid admin passcode.',
       });
     }
   } catch (error) {
-    console.error('Passcode Verification Error:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Server error during passcode verification.',
-      error: error.message,
+    Console.error('Passcode Verification Error:', error);
+    Return res.status(500).json({
+      Success: false,
+      Message: 'Server error during passcode verification.',
+      Error: error.message,
     });
   }
 });
@@ -275,23 +276,23 @@ router.post('/admin/verify', async (req, res) => {
 // 4. RESET PASSWORD ENDPOINT (/api/auth/reset-password)
 // ================================================================
 router.post('/reset-password', async (req, res) => {
-  try {
-    const { phoneNumber, phone, idNumber, tscNumber, newPassword } = req.body || {};
+  Try {
+    Const { phoneNumber, phone, idNumber, tscNumber, newPassword } = req.body || {};
 
-    const rawPhone = phoneNumber || phone || '';
-    const cleanPhone = String(rawPhone).replace(/\s+/g, '');
-    const cleanId = String(idNumber || '').trim();
-    const cleanTsc = String(tscNumber || '').trim();
-    const cleanPassword = String(newPassword || '').trim();
+    Const rawPhone = phoneNumber || phone || '';
+    Const cleanPhone = String(rawPhone).replace(/\s+/g, '');
+    Const cleanId = String(idNumber || '').trim();
+    Const cleanTsc = String(tscNumber || '').trim();
+    Const cleanPassword = String(newPassword || '').trim();
 
-    if (!cleanPhone || !cleanId || !cleanTsc || !cleanPassword) {
-      return res.status(400).json({
-        success: false,
-        message: 'Phone number, ID number, TSC number, and new password are all required.',
+    If (!cleanPhone || !cleanId || !cleanTsc || !cleanPassword) {
+      Return res.status(400).json({
+        Success: false,
+        Message: 'Phone number, ID number, TSC number, and new password are all required.',
       });
     }
 
-    const user = await User.findOne({
+    Const user = await User.findOne({
       $and: [
         { $or: [{ phone: cleanPhone }, { phoneNumber: cleanPhone }] },
         { $or: [{ nationalId: cleanId }, { idNumber: cleanId }] },
@@ -299,27 +300,27 @@ router.post('/reset-password', async (req, res) => {
       ],
     });
 
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'Verification failed. Phone number, ID number, and TSC number do not match records.',
+    If (!user) {
+      Return res.status(404).json({
+        Success: false,
+        Message: 'Verification failed. Phone number, ID number, and TSC number do not match records.',
       });
     }
 
-    const salt = await bcrypt.genSalt(10);
-    user.password = await bcrypt.hash(cleanPassword, salt);
+    Const salt = await bcrypt.genSalt(10);
+    User.password = await bcrypt.hash(cleanPassword, salt);
     await user.save();
 
-    return res.status(200).json({
-      success: true,
-      message: 'Password reset successfully! You can now log in.',
+    Return res.status(200).json({
+      Success: true,
+      Message: 'Password reset successfully! You can now log in.',
     });
   } catch (error) {
-    console.error('Reset Password Error:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Server error during password reset.',
-      error: error.message,
+    Console.error('Reset Password Error:', error);
+    Return res.status(500).json({
+      Success: false,
+      Message: 'Server error during password reset.',
+      Error: error.message,
     });
   }
 });
@@ -328,50 +329,51 @@ router.post('/reset-password', async (req, res) => {
 // 5. GET USER PROFILE ENDPOINT (/api/auth/profile)
 // ================================================================
 router.get('/profile', async (req, res) => {
-  try {
-    const userId = req.query.userId || (req.user && req.user.userId);
+  Try {
+    Const userId = req.query.userId || (req.user && req.user.userId);
 
-    if (!userId) {
-      return res.status(400).json({
-        success: false,
-        message: 'User ID is required to fetch profile.',
+    If (!userId) {
+      Return res.status(400).json({
+        Success: false,
+        Message: 'User ID is required to fetch profile.',
       });
     }
 
-    const user = await User.findById(userId).select('-password');
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User profile not found.',
+    Const user = await User.findById(userId).select('-password');
+    If (!user) {
+      Return res.status(404).json({
+        Success: false,
+        Message: 'User profile not found.',
       });
     }
 
-    return res.status(200).json({
-      success: true,
-      user: {
-        id: user._id,
-        fullName: user.fullName,
-        phone: user.phone,
-        // Non-editable Identity Fields
-        tscNumber: user.tscNumber || '',
-        nationalId: user.nationalId || user.idNumber || '',
+    Return res.status(200).json({
+      Success: true,
+      User: {
+        Id: user._id,
+        FullName: user.fullName,
+        Phone: user.phone,
+        // Non-editable Identity Fields & Admin Permission Flag
+        TscNumber: user.tscNumber || '',
+        NationalId: user.nationalId || user.idNumber || '',
+        CanEditTsc: user.canEditTsc || false, // <-- Expose edit permission state to Flutter app
         // Editable Profile Fields
-        currentSchool: user.currentSchool || '',
-        county: user.county || '',
-        subCounty: user.subCounty || '',
-        subjectCombination: user.subjectCombination || user.subjects || '',
-        subjects: user.subjectCombination || user.subjects || '',
-        role: user.role,
-        status: user.status,
-        profilePhotoUrl: user.profilePhotoUrl || '',
+        CurrentSchool: user.currentSchool || '',
+        County: user.county || '',
+        SubCounty: user.subCounty || '',
+        SubjectCombination: user.subjectCombination || user.subjects || '',
+        Subjects: user.subjectCombination || user.subjects || '',
+        Role: user.role,
+        Status: user.status,
+        ProfilePhotoUrl: user.profilePhotoUrl || '',
       },
     });
   } catch (error) {
-    console.error('Fetch Profile Error:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Server error fetching user profile.',
-      error: error.message,
+    Console.error('Fetch Profile Error:', error);
+    Return res.status(500).json({
+      Success: false,
+      Message: 'Server error fetching user profile.',
+      Error: error.message,
     });
   }
 });
@@ -380,97 +382,128 @@ router.get('/profile', async (req, res) => {
 // 6. UPDATE USER PROFILE ENDPOINT (/api/auth/profile)
 // ================================================================
 router.put('/profile', async (req, res) => {
-  try {
-    const {
-      userId,
-      fullName,
-      phone,
-      phoneNumber,
-      currentSchool,
-      county,
-      subCounty,
-      subjectCombination,
-      subjects,
-      profilePhotoUrl,
-      profilePhoto, // Added to catch either key from frontend payloads
+  Try {
+    Const {
+      UserId,
+      FullName,
+      Phone,
+      PhoneNumber,
+      TscNumber,
+      NationalId,
+      IdNumber,
+      CurrentSchool,
+      County,
+      SubCounty,
+      SubjectCombination,
+      Subjects,
+      ProfilePhotoUrl,
+      ProfilePhoto,
     } = req.body || {};
 
-    const targetUserId = userId || (req.user && req.user.userId);
+    Const targetUserId = userId || (req.user && req.user.userId);
 
-    if (!targetUserId) {
-      return res.status(400).json({
-        success: false,
-        message: 'User ID is required to update profile.',
+    If (!targetUserId) {
+      Return res.status(400).json({
+        Success: false,
+        Message: 'User ID is required to update profile.',
       });
     }
 
-    const user = await User.findById(targetUserId);
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found.',
+    Const user = await User.findById(targetUserId);
+    If (!user) {
+      Return res.status(404).json({
+        Success: false,
+        Message: 'User not found.',
       });
+    }
+
+    // Handle Identity Fields (TSC and National ID) guarded by canEditTsc permission
+    Const rawNewTsc = TscNumber;
+    Const rawNewId = NationalId || IdNumber;
+
+    If (rawNewTsc !== undefined || rawNewId !== undefined) {
+      If (user.canEditTsc) {
+        If (rawNewTsc !== undefined) user.tscNumber = String(rawNewTsc).trim();
+        If (rawNewId !== undefined) {
+          User.nationalId = String(rawNewId).trim();
+          User.idNumber = String(rawNewId).trim();
+        }
+        // Automatically re-lock identity fields after a successful update for security
+        User.canEditTsc = false;
+      } else {
+        // Block if user attempts modification without admin permission
+        If (
+          (rawNewTsc !== undefined && String(rawNewTsc).trim() !== String(user.tscNumber || '')) ||
+          (rawNewId !== undefined && String(rawNewId).trim() !== String(user.nationalId || user.idNumber || ''))
+        ) {
+          Return res.status(403).json({
+            Success: false,
+            Message: 'Permission denied. ID and TSC numbers are locked. Contact Admin to unlock.',
+          });
+        }
+      }
     }
 
     // Phone validation if phone is being updated
-    const rawPhone = phoneNumber || phone;
-    if (rawPhone) {
-      const cleanPhone = String(rawPhone).replace(/\s+/g, '');
-      const kenyanPhoneRegex = /^(07|01|\+254)[0-9]{8}$/;
-      if (!kenyanPhoneRegex.test(cleanPhone)) {
-        return res.status(400).json({
-          success: false,
-          message: 'Please enter a valid Kenyan phone number.',
+    Const rawPhone = phoneNumber || phone;
+    If (rawPhone) {
+      Const cleanPhone = String(rawPhone).replace(/\s+/g, '');
+      Const kenyanPhoneRegex = /^(07|01|\+254)[0-9]{8}$/;
+      If (!kenyanPhoneRegex.test(cleanPhone)) {
+        Return res.status(400).json({
+          Success: false,
+          Message: 'Please enter a valid Kenyan phone number.',
         });
       }
-      user.phone = cleanPhone;
+      User.phone = cleanPhone;
     }
 
-    const newSubject = subjectCombination || subjects;
-    const resolvedPhoto = profilePhotoUrl || profilePhoto;
+    Const newSubject = subjectCombination || subjects;
+    Const resolvedPhoto = profilePhotoUrl || profilePhoto;
 
     // Explicitly update permitted fields
-    if (fullName !== undefined) user.fullName = String(fullName).trim();
-    if (currentSchool !== undefined) user.currentSchool = String(currentSchool).trim();
-    if (county !== undefined) user.county = String(county).trim();
-    if (subCounty !== undefined) user.subCounty = String(subCounty).trim();
-    if (newSubject !== undefined) {
-      user.subjectCombination = String(newSubject).trim();
-      user.subjects = String(newSubject).trim();
+    If (fullName !== undefined) user.fullName = String(fullName).trim();
+    If (currentSchool !== undefined) user.currentSchool = String(currentSchool).trim();
+    If (county !== undefined) user.county = String(county).trim();
+    If (subCounty !== undefined) user.subCounty = String(subCounty).trim();
+    If (newSubject !== undefined) {
+      User.subjectCombination = String(newSubject).trim();
+      User.subjects = String(newSubject).trim();
     }
     
     // Save photo to both keys for complete data consistency across the app
-    if (resolvedPhoto !== undefined) {
-      user.profilePhotoUrl = resolvedPhoto;
-      user.profilePhoto = resolvedPhoto;
+    If (resolvedPhoto !== undefined) {
+      User.profilePhotoUrl = resolvedPhoto;
+      User.profilePhoto = resolvedPhoto;
     }
 
     await user.save();
 
-    return res.status(200).json({
-      success: true,
-      message: 'Profile updated successfully!',
-      user: {
-        id: user._id,
-        fullName: user.fullName,
-        phone: user.phone,
-        tscNumber: user.tscNumber,
-        nationalId: user.nationalId,
-        currentSchool: user.currentSchool,
-        county: user.county,
-        subCounty: user.subCounty,
-        subjectCombination: user.subjectCombination,
-        role: user.role,
-        profilePhotoUrl: user.profilePhotoUrl,
-        profilePhoto: user.profilePhoto,
+    Return res.status(200).json({
+      Success: true,
+      Message: 'Profile updated successfully!',
+      User: {
+        Id: user._id,
+        FullName: user.fullName,
+        Phone: user.phone,
+        TscNumber: user.tscNumber,
+        NationalId: user.nationalId,
+        CanEditTsc: user.canEditTsc,
+        CurrentSchool: user.currentSchool,
+        County: user.county,
+        SubCounty: user.subCounty,
+        SubjectCombination: user.subjectCombination,
+        Role: user.role,
+        ProfilePhotoUrl: user.profilePhotoUrl,
+        ProfilePhoto: user.profilePhoto,
       },
     });
   } catch (error) {
-    console.error('Update Profile Error:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Server error updating profile.',
-      error: error.message,
+    Console.error('Update Profile Error:', error);
+    Return res.status(500).json({
+      Success: false,
+      Message: 'Server error updating profile.',
+      Error: error.message,
     });
   }
 });
@@ -479,41 +512,41 @@ router.put('/profile', async (req, res) => {
 // 7. UPDATE PROFILE PHOTO ENDPOINT (/api/auth/update-photo/:userId)
 // ================================================================
 router.put('/update-photo/:userId', async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const { profilePhoto } = req.body;
+  Try {
+    Const { userId } = req.params;
+    Const { profilePhoto } = req.body;
 
-    if (!userId || !profilePhoto) {
-      return res.status(400).json({
-        success: false,
-        message: 'User ID and profile photo URL are required.',
+    If (!userId || !profilePhoto) {
+      Return res.status(400).json({
+        Success: false,
+        Message: 'User ID and profile photo URL are required.',
       });
     }
 
-    const updatedUser = await User.findById(userId);
-    if (!updatedUser) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found.',
+    Const updatedUser = await User.findById(userId);
+    If (!updatedUser) {
+      Return res.status(404).json({
+        Success: false,
+        Message: 'User not found.',
       });
     }
 
     // Save under both keys to ensure database persistence consistency
-    updatedUser.profilePhotoUrl = profilePhoto;
-    updatedUser.profilePhoto = profilePhoto;
+    UpdatedUser.profilePhotoUrl = profilePhoto;
+    UpdatedUser.profilePhoto = profilePhoto;
     await updatedUser.save();
 
-    return res.status(200).json({
-      success: true,
-      message: 'Profile photo updated successfully!',
-      profilePhoto: updatedUser.profilePhotoUrl,
+    Return res.status(200).json({
+      Success: true,
+      Message: 'Profile photo updated successfully!',
+      ProfilePhoto: updatedUser.profilePhotoUrl,
     });
   } catch (error) {
-    console.error('Update Photo Error:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Server error updating profile photo.',
-      error: error.message,
+    Console.error('Update Photo Error:', error);
+    Return res.status(500).json({
+      Success: false,
+      Message: 'Server error updating profile photo.',
+      Error: error.message,
     });
   }
 });
