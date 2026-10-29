@@ -192,12 +192,14 @@ router.get('/members', async (req, res) => {
 // =========================================================
 router.put('/grant-identity-edit/:id', async (req, res) => {
   try {
-    // Explicitly coerce incoming value into a strict boolean
+    console.log("INCOMING GRANT EDIT BODY:", req.body); // Check your Vercel logs to see this
+
+    // Robustly handle boolean, string ("true"), or number (1)
     const rawValue = req.body.canEditTsc;
     const canEditVal = rawValue === true || rawValue === 'true' || rawValue === 1;
     const userId = req.params.id;
 
-    // Use $set to force MongoDB to persist the boolean state change
+    // Use $set and runValidators to force MongoDB to persist the change
     const updatedUser = await User.findByIdAndUpdate(
       userId,
       { $set: { canEditTsc: canEditVal } },
