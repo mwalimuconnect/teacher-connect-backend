@@ -35,10 +35,21 @@ router.post('/', upload.single('file'), async (req, res) => {
     const ext = path.extname(originalName).toLowerCase();
     const nameWithoutExt = path.parse(originalName).name.replace(/[^a-zA-Z0-9]/g, '_');
 
+    // 💡 Determine correct Cloudinary resource_type to prevent viewer/download bugs
+    let resourceType = 'auto';
+    if (['.pdf', '.jpg', '.jpeg', '.png', '.webp'].includes(ext)) {
+      resourceType = 'image';
+    } else if (['.mp4', '.mov', '.avi'].includes(ext)) {
+      resourceType = 'video';
+    } else {
+      // .docx, .xlsx, .zip, etc. should be stored as 'raw' to preserve binary integrity
+      resourceType = 'raw';
+    }
+
     // Stream buffer directly to Cloudinary
     const uploadStream = cloudinary.uploader.upload_stream(
       {
-        resource_type: 'auto', // 'auto' lets Cloudinary choose between image, video, and raw correctly
+        resource_type: resourceType, 
         folder: 'teacher_resources',
         public_id: `${nameWithoutExt}_${Date.now()}`,
         use_filename: true,
