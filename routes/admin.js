@@ -192,13 +192,16 @@ router.get('/members', async (req, res) => {
 // =========================================================
 router.put('/grant-identity-edit/:id', async (req, res) => {
   try {
-    const { canEditTsc } = req.body; // Expects boolean (true to unlock, false to lock)
+    // Explicitly coerce incoming value into a strict boolean
+    const rawValue = req.body.canEditTsc;
+    const canEditVal = rawValue === true || rawValue === 'true' || rawValue === 1;
     const userId = req.params.id;
 
+    // Use $set to force MongoDB to persist the boolean state change
     const updatedUser = await User.findByIdAndUpdate(
       userId,
-      { canEditTsc: canEditTsc === true },
-      { new: true }
+      { $set: { canEditTsc: canEditVal } },
+      { new: true, runValidators: true }
     ).select('-password');
 
     if (!updatedUser) {
