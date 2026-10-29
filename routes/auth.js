@@ -347,16 +347,21 @@ router.get('/profile', async (req, res) => {
       });
     }
 
+    // Coerce permission boolean robustly
+    const rawCanEdit = user.canEditTsc;
+    const canEditVal = rawCanEdit === true || String(rawCanEdit).toLowerCase() === 'true' || rawCanEdit === 1;
+
     return res.status(200).json({
       success: true,
       user: {
         id: user._id,
+        _id: user._id,
         fullName: user.fullName,
         phone: user.phone,
         // Non-editable Identity Fields & Admin Permission Flag
         tscNumber: user.tscNumber || '',
         nationalId: user.nationalId || user.idNumber || '',
-        canEditTsc: user.canEditTsc || false,
+        canEditTsc: canEditVal, // Explicitly passed for Flutter state parsing
         // Editable Profile Fields
         currentSchool: user.currentSchool || '',
         county: user.county || '',
@@ -365,7 +370,8 @@ router.get('/profile', async (req, res) => {
         subjects: user.subjectCombination || user.subjects || '',
         role: user.role,
         status: user.status,
-        profilePhotoUrl: user.profilePhotoUrl || '',
+        profilePhotoUrl: user.profilePhotoUrl || user.profilePhoto || '',
+        profilePhoto: user.profilePhoto || user.profilePhotoUrl || '',
       },
     });
   } catch (error) {
@@ -484,6 +490,7 @@ router.put('/profile', async (req, res) => {
       message: 'Profile updated successfully!',
       user: {
         id: user._id,
+        _id: user._id,
         fullName: user.fullName,
         phone: user.phone,
         tscNumber: user.tscNumber,
@@ -550,5 +557,5 @@ router.put('/update-photo/:userId', async (req, res) => {
     });
   }
 });
-    
+
 module.exports = router;
