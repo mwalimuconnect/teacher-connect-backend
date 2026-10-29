@@ -73,6 +73,10 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    canEditTsc: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,
