@@ -25,6 +25,11 @@ const sampleResources = [
   },
 ];
 
+// Helper to escape special regex characters safely
+const escapeRegex = (text) => {
+  return text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
+};
+
 // Helper to format resource items properly for Flutter UI
 const formatResource = (item) => {
   const doc = item._doc || item;
@@ -42,7 +47,7 @@ const formatResource = (item) => {
 };
 
 // ============================================================================
-// 1. GET /api/resources - Fetch all resources with filters (category, subject, form, search)
+// 1. GET /api/resources - Fetch all resources with smart filters
 // ============================================================================
 router.get('/', async (req, res) => {
   try {
@@ -51,22 +56,29 @@ router.get('/', async (req, res) => {
 
     // Filter by Category
     if (category && category.toLowerCase() !== 'all') {
-      query.category = { $regex: new RegExp(category, 'i') };
+      const cleanCat = category.trim();
+      query.category = { $regex: new RegExp(escapeRegex(cleanCat), 'i') };
     }
 
-    // Filter by Subject (Supports combined subjects like 'English / Literature')
+    // Filter by Subject (Handles combined subjects like 'English / Literature')
     if (subject && subject.toLowerCase() !== 'all') {
-      query.subject = { $regex: new RegExp(subject.trim(), 'i') };
+      const cleanSub = subject.trim();
+      
+      // If subject contains slashes or spaces, break down words or search for exact matches
+      const subTokens = cleanSub.split(/[\/\s]+/).filter(Boolean);
+      const regexPattern = subTokens.map(escapeRegex).join('|');
+
+      query.subject = { $regex: new RegExp(regexPattern, 'i') };
     }
 
     // Filter by Search Title
     if (search) {
-      query.title = { $regex: new RegExp(search, 'i') };
+      query.title = { $regex: new RegExp(escapeRegex(search.trim()), 'i') };
     }
 
     // Filter by Form
     if (form && form.toLowerCase() !== 'all') {
-      query.form = { $regex: new RegExp(form, 'i') };
+      query.form = { $regex: new RegExp(escapeRegex(form.trim()), 'i') };
     }
 
     let resources = await Resource.find(query).sort({ createdAt: -1 });
@@ -92,7 +104,7 @@ router.get('/category/:category', async (req, res) => {
     let query = {};
 
     if (catParam && catParam.toLowerCase() !== 'all') {
-      query.category = { $regex: new RegExp(catParam, 'i') };
+      query.category = { $regex: new RegExp(escapeRegex(catParam.trim()), 'i') };
     }
 
     let resources = await Resource.find(query).sort({ createdAt: -1 });
@@ -193,11 +205,11 @@ router.post('/', async (req, res) => {
     const parsedPrice = parseFloat(price);
     const finalPrice = !isNaN(parsedPrice) && parsedPrice > 0 ? parsedPrice : 50;
 
-    // Clean up subject name (e.g., if dropdown passes "English / Literature", keep it clean)
+    // Clean up subject name
     const cleanSubject = subject ? subject.trim() : 'General';
 
     const newResource = new Resource({
-      title,
+      title: title.trim(),
       category: category.trim(),
       subject: cleanSubject,
       form: form || 'General',
