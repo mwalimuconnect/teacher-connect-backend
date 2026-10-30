@@ -118,7 +118,7 @@ router.get('/category/:category', async (req, res) => {
 });
 
 // ============================================================================
-// 3. GET /api/resources/download/:id - File Download Proxy (Direct Redirect)
+// 3. GET /api/resources/download/:id - File Download Proxy (Original Streaming Version)
 // ============================================================================
 router.get('/download/:id', async (req, res) => {
   try {
@@ -134,7 +134,7 @@ router.get('/download/:id', async (req, res) => {
       return res.status(400).json({ success: false, message: 'No file URL attached to this resource' });
     }
 
-    // Check payment & admin authorization
+    // Check payment & admin authorization (Allow access if preview=true or admin)
     const isFree = !resource.price || resource.price <= 0;
     const hasAdminAccess = isAdmin === 'true' || isAdmin === true;
     const isPaid = resource.isPaid === true;
@@ -147,16 +147,46 @@ router.get('/download/:id', async (req, res) => {
       });
     }
 
-    // Direct 302 Redirect to the clean original file URL
-    return res.redirect(302, fileUrl);
+    // Detect file extension accurately
+    const lowerUrl = fileUrl.toLowerCase();
+    let extension = '.pdf';
 
+    if (lowerUrl.includes('.zip')) extension = '.zip';
+    else if (lowerUrl.includes('.xlsx')) extension = '.xlsx';
+    else if (lowerUrl.includes('.docx') || lowerUrl.includes('.doc')) extension = '.docx';
+    else if (lowerUrl.includes('.ppt') || lowerUrl.includes('.pptx')) extension = '.pptx';
+    else if (lowerUrl.includes('.pdf')) extension = '.pdf';
+
+    const safeFilename = resource.title.replace(/[^a-zA-Z0-9_\-]/g, '_');
+    
+    // Use 'inline' disposition for preview so browsers/viewers handle it properly
+    const disposition = isPreview ? 'inline' : 'attachment';
+    res.setHeader('Content-Disposition', `${disposition}; filename="${safeFilename}${extension}"`);
+    
+    if (extension === '.zip') {
+      res.setHeader('Content-Type', 'application/zip');
+    } else if (extension === '.docx') {
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    } else if (extension === '.xlsx') {
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    } else if (extension === '.pdf') {
+      res.setHeader('Content-Type', 'application/pdf');
+    } else if (extension === '.pptx') {
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
+    }
+
+    // Stream binary document directly through Express using Axios
+    const response = await axios({
+      method: 'get',
+      url: fileUrl,
+      responseType: 'stream',
+    });
+
+    response.data.pipe(res);
   } catch (error) {
-    console.error('Error downloading resource:', error.message);
+    console.error('Error downloading resource:', error);
     if (!res.headersSent) {
-      return res.status(500).json({ 
-        success: false, 
-        message: 'Failed to download resource: ' + error.message 
-      });
+      return res.status(500).json({ success: false, message: error.message });
     }
   }
 });
