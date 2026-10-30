@@ -118,7 +118,7 @@ router.get('/category/:category', async (req, res) => {
 });
 
 // ============================================================================
-// 3. GET /api/resources/download/:id - File Download Proxy (With Direct Fallback)
+// 3. GET /api/resources/download/:id - File Download Proxy (Direct Redirect)
 // ============================================================================
 router.get('/download/:id', async (req, res) => {
   try {
@@ -129,7 +129,7 @@ router.get('/download/:id', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Resource not found' });
     }
 
-    let fileUrl = resource.fileUrl;
+    const fileUrl = resource.fileUrl;
     if (!fileUrl) {
       return res.status(400).json({ success: false, message: 'No file URL attached to this resource' });
     }
@@ -147,12 +147,7 @@ router.get('/download/:id', async (req, res) => {
       });
     }
 
-    // Ensure Cloudinary attachment header for downloads if applicable
-    if (!isPreview && fileUrl.includes('cloudinary.com') && !fileUrl.includes('fl_attachment')) {
-      fileUrl = fileUrl.replace('/upload/', '/upload/fl_attachment/');
-    }
-
-    // OPTION 1: Direct 302 Redirect (Fastest & most stable for serverless platforms like Vercel)
+    // Direct 302 Redirect to the clean original file URL
     return res.redirect(302, fileUrl);
 
   } catch (error) {
