@@ -15,7 +15,7 @@ cloudinary.config({
 const storage = multer.memoryStorage();
 const upload = multer({
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB file limit
+  limits: { fileSize: 25 * 1024 * 1024 }, // Increased to 25MB for large study notes & zip files
 });
 
 // POST /api/upload - Direct File Upload Endpoint
@@ -32,25 +32,14 @@ router.post('/', upload.single('file'), async (req, res) => {
     }
 
     const originalName = req.file.originalname;
-    const ext = path.extname(originalName).toLowerCase();
     const nameWithoutExt = path.parse(originalName).name.replace(/[^a-zA-Z0-9]/g, '_');
 
-    // 💡 Determine correct Cloudinary resource_type to prevent viewer/download bugs
-    let resourceType = 'auto';
-    if (['.pdf', '.jpg', '.jpeg', '.png', '.webp'].includes(ext)) {
-      resourceType = 'image';
-    } else if (['.mp4', '.mov', '.avi'].includes(ext)) {
-      resourceType = 'video';
-    } else {
-      // .docx, .xlsx, .zip, etc. should be stored as 'raw' to preserve binary integrity
-      resourceType = 'raw';
-    }
-
-    // Stream buffer directly to Cloudinary
+    // Stream buffer directly to Cloudinary using 'auto' resource type 
+    // This safely handles PDFs, Word docs, Excel sheets, and Zips without breaking links
     const uploadStream = cloudinary.uploader.upload_stream(
       {
-        resource_type: resourceType, 
-        folder: 'teacher_resources',
+        resource_type: 'auto', // 👈 'auto' lets Cloudinary properly manage and deliver all document types
+        folder: 'teacher_connect_resources',
         public_id: `${nameWithoutExt}_${Date.now()}`,
         use_filename: true,
         unique_filename: true,
