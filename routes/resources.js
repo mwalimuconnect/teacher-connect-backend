@@ -301,4 +301,42 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// ============================================================================
+// 7. GET /api/resources/subjects - Fetch distinct single subjects list
+// ============================================================================
+router.get('/subjects', async (req, res) => {
+  try {
+    const rawSubjects = await Resource.distinct('subject');
+    const singleSubjectsSet = new Set();
+
+    // Standard list of baseline subjects to ensure completeness
+    const defaultSubjects = [
+      'English', 'Literature', 'Kiswahili', 'Fasihi', 'Mathematics',
+      'Biology', 'Chemistry', 'Physics', 'History', 'Geography',
+      'CRE', 'Business Studies', 'Agriculture', 'Computer Studies', 'Home Science'
+    ];
+
+    defaultSubjects.forEach((sub) => singleSubjectsSet.add(sub));
+
+    // Split any stored combinations like "English / Literature" into standalone subjects
+    rawSubjects.forEach((item) => {
+      if (item && typeof item === 'string') {
+        const parts = item.split(/[\/,]+/);
+        parts.forEach((p) => {
+          const clean = p.trim();
+          if (clean && clean.toLowerCase() !== 'general' && clean.toLowerCase() !== 'n/a') {
+            singleSubjectsSet.add(clean);
+          }
+        });
+      }
+    });
+
+    const sortedSubjects = Array.from(singleSubjectsSet).sort();
+    return res.status(200).json(sortedSubjects);
+  } catch (error) {
+    console.error('Error fetching distinct subjects:', error);
+    return res.status(500).json({ error: 'Failed to fetch subjects list' });
+  }
+});
+
 module.exports = router;
