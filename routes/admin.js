@@ -228,6 +228,44 @@ router.put('/grant-identity-edit/:id', async (req, res) => {
 });
 
 // =========================================================
+// 2C. PUT /api/admin/grant-upload-permission/:id - Grant or Revoke Upload Rights
+// =========================================================
+router.put('/grant-upload-permission/:id', async (req, res) => {
+  try {
+    console.log("INCOMING GRANT UPLOAD BODY:", req.body);
+
+    const rawValue = req.body.canUploadResources;
+    const canUploadVal = rawValue === true || rawValue === 'true' || rawValue === 1;
+    const userId = req.params.id;
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { $set: { canUploadResources: canUploadVal } },
+      { new: true, runValidators: true }
+    ).select('-password');
+
+    if (!updatedUser) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: updatedUser.canUploadResources
+        ? 'Resource upload permission granted successfully.'
+        : 'Resource upload permission revoked successfully.',
+      user: {
+        ...updatedUser._doc,
+        id: String(updatedUser._id),
+        canUploadResources: updatedUser.canUploadResources,
+      },
+    });
+  } catch (error) {
+    console.error('Toggle Upload Permission Error:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// =========================================================
 // 3. GET /api/admin/pending-approvals - Fetch All Pending Categories
 // =========================================================
 router.get('/pending-approvals', async (req, res) => {
