@@ -192,12 +192,12 @@ app.get('/api/announcement/active', async (req, res) => {
   }
 });
 
-// App Version Check Endpoint serving direct GitHub APK download
+// App Version Check Endpoint serving direct GitHub APK download (Updated to 1.0.4)
 app.get('/api/app-version', (req, res) => {
   res.status(200).json({
-    latestVersion: "1.0.3",
+    latestVersion: "1.0.4",
     forceUpdate: false,
-    storeUrl: "https://github.com/mwalimuconnect/TeacherConnect-/releases/download/v1.0.1/app-release.apk"
+    storeUrl: "https://github.com/mwalimuconnect/TeacherConnect-/releases/download/1.0.4/app-release.apk"
   });
 });
 
