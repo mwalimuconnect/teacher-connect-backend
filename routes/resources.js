@@ -118,11 +118,11 @@ router.get('/category/:category', async (req, res) => {
 });
 
 // ============================================================================
-// 3. GET /api/resources/download/:id - File Download Proxy (Original Streaming Version)
+// 3. GET /api/resources/download/:id - File Download Proxy (With Ownership Check)
 // ============================================================================
 router.get('/download/:id', async (req, res) => {
   try {
-    const { isAdmin, preview } = req.query;
+    const { isAdmin, preview, userId } = req.query;
     const resource = await Resource.findById(req.params.id);
 
     if (!resource) {
@@ -134,13 +134,19 @@ router.get('/download/:id', async (req, res) => {
       return res.status(400).json({ success: false, message: 'No file URL attached to this resource' });
     }
 
-    // Check payment & admin authorization (Allow access if preview=true or admin)
+    // 🔑 Check if the requesting user is the original creator of this resource
+    const isOwner = userId && (
+      (resource.userId && String(resource.userId) === String(userId)) ||
+      (resource.user && String(resource.user) === String(userId))
+    );
+
+    // Check authorization: Free, Admin, Paid, Preview, OR Resource Owner
     const isFree = !resource.price || resource.price <= 0;
     const hasAdminAccess = isAdmin === 'true' || isAdmin === true;
     const isPaid = resource.isPaid === true;
     const isPreview = preview === 'true' || preview === true;
 
-    if (!isFree && !hasAdminAccess && !isPaid && !isPreview) {
+    if (!isFree && !hasAdminAccess && !isPaid && !isPreview && !isOwner) {
       return res.status(403).json({
         success: false,
         message: 'Payment required to download this resource.',
@@ -192,11 +198,11 @@ router.get('/download/:id', async (req, res) => {
 });
 
 // ============================================================================
-// 4. POST /api/resources - UPLOAD/CREATE A NEW RESOURCE
+// 4. POST /api/resources - UPLOAD/CREATE A NEW RESOURCE (Stores userId)
 // ============================================================================
 router.post('/', async (req, res) => {
   try {
-    const { title, category, subject, form, fileUrl, price, description } = req.body;
+    const { title, category, subject, form, fileUrl, price, description, userId } = req.body;
 
     if (!title || !category || !fileUrl) {
       return res.status(400).json({ error: 'Title, Category, and File URL are required.' });
@@ -216,6 +222,7 @@ router.post('/', async (req, res) => {
       fileUrl,
       price: finalPrice,
       description: description || '',
+      userId: userId || null, // 👈 Stores owner ID for free ownership access
     });
 
     await newResource.save();
