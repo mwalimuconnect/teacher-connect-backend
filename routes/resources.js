@@ -118,7 +118,7 @@ router.get('/category/:category', async (req, res) => {
 });
 
 // ============================================================================
-// 3. GET /api/resources/download/:id - File Download Proxy (With Ownership Check)
+// 3. GET /api/resources/download/:id - File Download Proxy (With Axios Error Logging)
 // ============================================================================
 router.get('/download/:id', async (req, res) => {
   try {
@@ -130,8 +130,11 @@ router.get('/download/:id', async (req, res) => {
     }
 
     const fileUrl = resource.fileUrl;
-    if (!fileUrl) {
-      return res.status(400).json({ success: false, message: 'No file URL attached to this resource' });
+    if (!fileUrl || fileUrl.includes('example.com')) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'This resource has a placeholder or invalid file URL. Please update the resource with a real file.' 
+      });
     }
 
     // 🔑 Check if the requesting user is the original creator of this resource
@@ -181,16 +184,19 @@ router.get('/download/:id', async (req, res) => {
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
     }
 
-    // Stream binary document directly through Express using Axios
+    // Stream binary document directly through Express using Axios with error catching
     const response = await axios({
       method: 'get',
       url: fileUrl,
       responseType: 'stream',
+    }).catch(axiosErr => {
+      console.error('Axios Fetch Failed for URL:', fileUrl, axiosErr.message);
+      throw new Error(`Failed to retrieve file from storage provider: ${axiosErr.message}`);
     });
 
     response.data.pipe(res);
   } catch (error) {
-    console.error('Error downloading resource:', error);
+    console.error('Error downloading resource:', error.message);
     if (!res.headersSent) {
       return res.status(500).json({ success: false, message: error.message });
     }
