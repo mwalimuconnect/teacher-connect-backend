@@ -1,354 +1,185 @@
 const express = require('express');
 const router = express.Router();
-const Resource = require('../models/Resource');
-const axios = require('axios');
-
-// Default fallback items if the database has no records yet
-const sampleResources = [
-  {
-    id: '1',
-    title: 'Form 4 English Schemes of Work (Term 1-3)',
-    category: 'Schemes of Work',
-    subject: 'English',
-    form: 'Form 4',
-    fileUrl: 'https://example.com/schemes.docx',
-    price: 50,
-  },
-  {
-    id: '2',
-    title: 'Blossoms of the Savannah Comprehensive Lesson Plan',
-    category: 'Lesson Plans',
-    subject: 'Literature',
-    form: 'Form 3',
-    fileUrl: 'https://example.com/lesson_plan.docx',
-    price: 50,
-  },
-];
-
-// Helper to escape special regex characters safely
-const escapeRegex = (text) => {
-  return text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&');
-};
-
-// Helper to format resource items properly for Flutter UI
-const formatResource = (item) => {
-  const doc = item._doc || item;
-
-  // Extract or assign price (defaults to 50 if missing or 0)
-  const parsedPrice = parseFloat(doc.price);
-  const finalPrice = !isNaN(parsedPrice) && parsedPrice > 0 ? parsedPrice : 50;
-
-  return {
-    ...doc,
-    id: doc._id ? doc._id.toString() : doc.id,
-    _id: doc._id ? doc._id.toString() : doc.id,
-    price: finalPrice,
-  };
-};
+const Listing = require('../models/Listing'); // Assuming your model is named Listing
 
 // ============================================================================
-// 1. GET /api/resources - Fetch all resources with smart filters
+// 1. GET /api/listings - Fetch all listings with filters (category, location, search)
 // ============================================================================
 router.get('/', async (req, res) => {
   try {
-    const { category, subject, search, form } = req.query;
+    const { type, location, subject, search } = req.query;
     let query = {};
 
-    // Filter by Category
-    if (category && category.toLowerCase() !== 'all') {
-      const cleanCat = category.trim();
-      query.category = { $regex: new RegExp(escapeRegex(cleanCat), 'i') };
+    // Filter by Listing Type / Category (e.g., TSC Swaps, BOM Jobs, Seeking BOM)
+    if (type && type.toLowerCase() !== 'all') {
+      query.type = { $regex: new RegExp(type.trim(), 'i') };
     }
 
-    // Filter by Subject (Handles combined subjects like 'English / Literature')
+    // Filter by Location / County / Sub-county
+    if (location && location.toLowerCase() !== 'all') {
+      query.location = { $regex: new RegExp(location.trim(), 'i') };
+    }
+
+    // Filter by Subject
     if (subject && subject.toLowerCase() !== 'all') {
-      const cleanSub = subject.trim();
-      
-      // If subject contains slashes or spaces, break down words or search for exact matches
-      const subTokens = cleanSub.split(/[\/\s]+/).filter(Boolean);
-      const regexPattern = subTokens.map(escapeRegex).join('|');
-
-      query.subject = { $regex: new RegExp(regexPattern, 'i') };
+      query.subject = { $regex: new RegExp(subject.trim(), 'i') };
     }
 
-    // Filter by Search Title
+    // Search query
     if (search) {
-      query.title = { $regex: new RegExp(escapeRegex(search.trim()), 'i') };
+      query.$or = [
+        { title: { $regex: new RegExp(search.trim(), 'i') } },
+        { description: { $regex: new RegExp(search.trim(), 'i') } },
+        { location: { $regex: new RegExp(search.trim(), 'i') } },
+      ];
     }
 
-    // Filter by Form
-    if (form && form.toLowerCase() !== 'all') {
-      query.form = { $regex: new RegExp(escapeRegex(form.trim()), 'i') };
-    }
-
-    let resources = await Resource.find(query).sort({ createdAt: -1 });
-
-    if (resources.length === 0 && (!category || category.toLowerCase() === 'all') && !subject && !search) {
-      return res.status(200).json(sampleResources.map(formatResource));
-    }
-
-    const formatted = resources.map(formatResource);
-    return res.status(200).json(formatted);
+    const listings = await Listing.find(query).sort({ createdAt: -1 });
+    return res.status(200).json(listings);
   } catch (error) {
-    console.error('Error fetching resources:', error);
-    return res.status(500).json({ error: 'Failed to load teacher resources' });
+    console.error('Error fetching listings:', error);
+    return res.status(500).json({ success: false, message: 'Failed to load listings.' });
   }
 });
 
 // ============================================================================
-// 2. GET /api/resources/category/:category - Fetch by category param
+// 2. GET /api/listings/:id - Fetch single listing details (WITH OWNERSHIP CHECK)
 // ============================================================================
-router.get('/category/:category', async (req, res) => {
+router.get('/:id', async (req, res) => {
   try {
-    const catParam = req.params.category;
-    let query = {};
+    const { isAdmin, userId, preview } = req.query;
+    const listing = await Listing.findById(req.params.id);
 
-    if (catParam && catParam.toLowerCase() !== 'all') {
-      query.category = { $regex: new RegExp(escapeRegex(catParam.trim()), 'i') };
+    if (!listing) {
+      return res.status(404).json({ success: false, message: 'Listing not found.' });
     }
 
-    let resources = await Resource.find(query).sort({ createdAt: -1 });
-    const formatted = resources.map(formatResource);
-
-    return res.status(200).json(formatted);
-  } catch (error) {
-    console.error('Error fetching category resources:', error);
-    return res.status(500).json({ error: 'Failed to fetch category resources' });
-  }
-});
-
-// ============================================================================
-// 3. GET /api/resources/download/:id - File Download Proxy (With Axios Error Logging)
-// ============================================================================
-router.get('/download/:id', async (req, res) => {
-  try {
-    const { isAdmin, preview, userId } = req.query;
-    const resource = await Resource.findById(req.params.id);
-
-    if (!resource) {
-      return res.status(404).json({ success: false, message: 'Resource not found' });
-    }
-
-    const fileUrl = resource.fileUrl;
-    if (!fileUrl || fileUrl.includes('example.com')) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'This resource has a placeholder or invalid file URL. Please update the resource with a real file.' 
-      });
-    }
-
-    // 🔑 Check if the requesting user is the original creator of this resource
+    // 🔑 Check if the requesting user is the original creator/owner of this post
     const isOwner = userId && (
-      (resource.userId && String(resource.userId) === String(userId)) ||
-      (resource.user && String(resource.user) === String(userId))
+      (listing.userId && String(listing.userId) === String(userId)) ||
+      (listing.user && String(listing.user) === String(userId))
     );
 
-    // Check authorization: Free, Admin, Paid, Preview, OR Resource Owner
-    const isFree = !resource.price || resource.price <= 0;
+    // Authorization checks
+    const isFree = !listing.price || listing.price <= 0;
     const hasAdminAccess = isAdmin === 'true' || isAdmin === true;
-    const isPaid = resource.isPaid === true;
+    const isPaid = listing.isPaid === true;
     const isPreview = preview === 'true' || preview === true;
 
+    // If not free, admin, paid, preview, OR owner, block with payment prompt
     if (!isFree && !hasAdminAccess && !isPaid && !isPreview && !isOwner) {
       return res.status(403).json({
         success: false,
-        message: 'Payment required to download this resource.',
+        requiresPayment: true,
+        message: 'Payment required to view full details.',
       });
     }
 
-    // Detect file extension accurately
-    const lowerUrl = fileUrl.toLowerCase();
-    let extension = '.pdf';
-
-    if (lowerUrl.includes('.zip')) extension = '.zip';
-    else if (lowerUrl.includes('.xlsx')) extension = '.xlsx';
-    else if (lowerUrl.includes('.docx') || lowerUrl.includes('.doc')) extension = '.docx';
-    else if (lowerUrl.includes('.ppt') || lowerUrl.includes('.pptx')) extension = '.pptx';
-    else if (lowerUrl.includes('.pdf')) extension = '.pdf';
-
-    const safeFilename = resource.title.replace(/[^a-zA-Z0-9_\-]/g, '_');
-    
-    // Use 'inline' disposition for preview so browsers/viewers handle it properly
-    const disposition = isPreview ? 'inline' : 'attachment';
-    res.setHeader('Content-Disposition', `${disposition}; filename="${safeFilename}${extension}"`);
-    
-    if (extension === '.zip') {
-      res.setHeader('Content-Type', 'application/zip');
-    } else if (extension === '.docx') {
-      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-    } else if (extension === '.xlsx') {
-      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    } else if (extension === '.pdf') {
-      res.setHeader('Content-Type', 'application/pdf');
-    } else if (extension === '.pptx') {
-      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
-    }
-
-    // Stream binary document directly through Express using Axios with error catching
-    const response = await axios({
-      method: 'get',
-      url: fileUrl,
-      responseType: 'stream',
-    }).catch(axiosErr => {
-      console.error('Axios Fetch Failed for URL:', fileUrl, axiosErr.message);
-      throw new Error(`Failed to retrieve file from storage provider: ${axiosErr.message}`);
+    return res.status(200).json({
+      success: true,
+      listing,
     });
-
-    response.data.pipe(res);
   } catch (error) {
-    console.error('Error downloading resource:', error.message);
-    if (!res.headersSent) {
-      return res.status(500).json({ success: false, message: error.message });
-    }
+    console.error('Error fetching listing details:', error);
+    return res.status(500).json({ success: false, message: 'Server error loading listing details.' });
   }
 });
 
 // ============================================================================
-// 4. POST /api/resources - UPLOAD/CREATE A NEW RESOURCE (Stores userId)
+// 3. POST /api/listings - Create a new post/listing (Saves userId)
 // ============================================================================
 router.post('/', async (req, res) => {
   try {
-    const { title, category, subject, form, fileUrl, price, description, userId } = req.body;
+    const { title, type, location, subject, description, price, userId, contacts } = req.body;
 
-    if (!title || !category || !fileUrl) {
-      return res.status(400).json({ error: 'Title, Category, and File URL are required.' });
+    if (!title || !type) {
+      return res.status(400).json({ success: false, message: 'Title and listing type are required.' });
     }
 
-    const parsedPrice = parseFloat(price);
-    const finalPrice = !isNaN(parsedPrice) && parsedPrice > 0 ? parsedPrice : 50;
-
-    // Clean up subject name
-    const cleanSubject = subject ? subject.trim() : 'General';
-
-    const newResource = new Resource({
+    const newListing = new Listing({
       title: title.trim(),
-      category: category.trim(),
-      subject: cleanSubject,
-      form: form || 'General',
-      fileUrl,
-      price: finalPrice,
+      type: type.trim(),
+      location: location ? location.trim() : 'General',
+      subject: subject ? subject.trim() : 'General',
       description: description || '',
-      userId: userId || null, // 👈 Stores owner ID for free ownership access
+      price: price || 0,
+      userId: userId || null, // 👈 Saves owner ID so they can view their post for free
+      contacts: contacts || '',
     });
 
-    await newResource.save();
+    await newListing.save();
 
     return res.status(201).json({
       success: true,
-      message: 'Resource uploaded successfully!',
-      resource: formatResource(newResource),
+      message: 'Listing posted successfully!',
+      listing: newListing,
     });
   } catch (error) {
-    console.error('Error creating resource:', error);
-    return res.status(500).json({ error: 'Failed to save resource to database.' });
+    console.error('Error creating listing:', error);
+    return res.status(500).json({ success: false, message: 'Failed to create listing.' });
   }
 });
 
 // ============================================================================
-// 5. PUT /api/resources/:id - UPDATE AN EXISTING RESOURCE (ADMIN ONLY)
+// 4. PUT /api/listings/:id - Update an existing listing (Owner or Admin)
 // ============================================================================
 router.put('/:id', async (req, res) => {
   try {
-    const { isAdmin } = req.query;
+    const { isAdmin, userId } = req.query;
+    const listing = await Listing.findById(req.params.id);
+
+    if (!listing) {
+      return res.status(404).json({ success: false, message: 'Listing not found.' });
+    }
+
+    const isOwner = userId && listing.userId && String(listing.userId) === String(userId);
     const hasAdminAccess = isAdmin === 'true' || isAdmin === true;
-    
-    if (!hasAdminAccess) {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied. Only administrators can edit resources.',
-      });
+
+    if (!isOwner && !hasAdminAccess) {
+      return res.status(403).json({ success: false, message: 'Unauthorized to edit this listing.' });
     }
 
-    const { title, category, subject, form, fileUrl, price, description } = req.body;
-
-    const updatedResource = await Resource.findByIdAndUpdate(
-      req.params.id,
-      { title, category, subject, form, fileUrl, price, description },
-      { new: true, runValidators: true }
-    );
-
-    if (!updatedResource) {
-      return res.status(404).json({ success: false, message: 'Resource not found.' });
-    }
+    const updated = await Listing.findByIdAndUpdate(req.params.id, req.body, { new: true });
 
     return res.status(200).json({
       success: true,
-      message: 'Resource updated successfully!',
-      resource: formatResource(updatedResource),
+      message: 'Listing updated successfully!',
+      listing: updated,
     });
   } catch (error) {
-    console.error('Error updating resource:', error);
-    return res.status(500).json({ success: false, message: 'Failed to update resource.' });
+    console.error('Error updating listing:', error);
+    return res.status(500).json({ success: false, message: 'Failed to update listing.' });
   }
 });
 
 // ============================================================================
-// 6. DELETE /api/resources/:id - DELETE AN UNWANTED RESOURCE (ADMIN ONLY)
+// 5. DELETE /api/listings/:id - Delete a listing (Owner or Admin)
 // ============================================================================
 router.delete('/:id', async (req, res) => {
   try {
-    const { isAdmin } = req.query;
+    const { isAdmin, userId } = req.query;
+    const listing = await Listing.findById(req.params.id);
+
+    if (!listing) {
+      return res.status(404).json({ success: false, message: 'Listing not found.' });
+    }
+
+    const isOwner = userId && listing.userId && String(listing.userId) === String(userId);
     const hasAdminAccess = isAdmin === 'true' || isAdmin === true;
-    
-    if (!hasAdminAccess) {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied. Only administrators can delete resources.',
-      });
+
+    if (!isOwner && !hasAdminAccess) {
+      return res.status(403).json({ success: false, message: 'Unauthorized to delete this listing.' });
     }
 
-    const resourceId = req.params.id;
-    const deletedResource = await Resource.findByIdAndDelete(resourceId);
-
-    if (!deletedResource) {
-      return res.status(404).json({ success: false, message: 'Resource not found in database.' });
-    }
+    await Listing.findByIdAndDelete(req.params.id);
 
     return res.status(200).json({
       success: true,
-      message: 'Resource deleted successfully by admin!',
+      message: 'Listing deleted successfully!',
     });
   } catch (error) {
-    console.error('Error deleting resource:', error);
-    return res.status(500).json({ success: false, message: 'Failed to delete resource.' });
-  }
-});
-
-// ============================================================================
-// 7. GET /api/resources/subjects - Fetch distinct single subjects list
-// ============================================================================
-router.get('/subjects', async (req, res) => {
-  try {
-    const rawSubjects = await Resource.distinct('subject');
-    const singleSubjectsSet = new Set();
-
-    // Standard list of baseline subjects to ensure completeness
-    const defaultSubjects = [
-      'English', 'Literature', 'Kiswahili', 'Fasihi', 'Mathematics',
-      'Biology', 'Chemistry', 'Physics', 'History', 'Geography',
-      'CRE', 'Business Studies', 'Agriculture', 'Computer Studies', 'Home Science'
-    ];
-
-    defaultSubjects.forEach((sub) => singleSubjectsSet.add(sub));
-
-    // Split any stored combinations like "English / Literature" into standalone subjects
-    rawSubjects.forEach((item) => {
-      if (item && typeof item === 'string') {
-        const parts = item.split(/[\/,]+/);
-        parts.forEach((p) => {
-          const clean = p.trim();
-          if (clean && clean.toLowerCase() !== 'general' && clean.toLowerCase() !== 'n/a') {
-            singleSubjectsSet.add(clean);
-          }
-        });
-      }
-    });
-
-    const sortedSubjects = Array.from(singleSubjectsSet).sort();
-    return res.status(200).json(sortedSubjects);
-  } catch (error) {
-    console.error('Error fetching distinct subjects:', error);
-    return res.status(500).json({ error: 'Failed to fetch subjects list' });
+    console.error('Error deleting listing:', error);
+    return res.status(500).json({ success: false, message: 'Failed to delete listing.' });
   }
 });
 
