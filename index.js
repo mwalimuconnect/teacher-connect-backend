@@ -1,4 +1,4 @@
-const express = require('express');
+Const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 require('dotenv').config();
@@ -192,12 +192,12 @@ app.get('/api/announcement/active', async (req, res) => {
   }
 });
 
-// App Version Check Endpoint serving direct GitHub APK download (Updated to 1.0.4)
+// App Version Check Endpoint serving direct GitHub APK download (Updated to 1.0.485)
 app.get('/api/app-version', (req, res) => {
   res.status(200).json({
-    latestVersion: "1.0.4",
+    latestVersion: "1.0.485",
     forceUpdate: false,
-    storeUrl: "https://github.com/mwalimuconnect/TeacherConnect-/releases/download/1.0.4/app-release.apk"
+    storeUrl: "https://github.com/mwalimuconnect/TeacherConnect-/releases/download/v1.0.485/app-release.apk"
   });
 });
 
