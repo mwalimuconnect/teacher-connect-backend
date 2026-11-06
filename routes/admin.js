@@ -192,14 +192,12 @@ router.get('/members', async (req, res) => {
 // =========================================================
 router.put('/grant-identity-edit/:id', async (req, res) => {
   try {
-    console.log("INCOMING GRANT EDIT BODY:", req.body); // Check your Vercel logs to see this
+    console.log("INCOMING GRANT EDIT BODY:", req.body);
 
-    // Robustly handle boolean, string ("true"), or number (1)
     const rawValue = req.body.canEditTsc;
     const canEditVal = rawValue === true || rawValue === 'true' || rawValue === 1;
     const userId = req.params.id;
 
-    // Use $set and runValidators to force MongoDB to persist the change
     const updatedUser = await User.findByIdAndUpdate(
       userId,
       { $set: { canEditTsc: canEditVal } },
@@ -264,6 +262,28 @@ router.put('/grant-upload-permission/:id', async (req, res) => {
     return res.status(500).json({ success: false, error: error.message });
   }
 });
+
+// =========================================================
+// 2D. POST /api/admin/request-upload-rights - Handle Upload Rights Request
+// =========================================================
+const handleUploadRightsRequest = async (req, res) => {
+  try {
+    const { userId, userName, tscNumber, phone } = req.body || {};
+
+    console.log(`[Permission Request] Upload rights requested by: ${userName || 'User'} (TSC: ${tscNumber || 'N/A'}, Phone: ${phone || 'N/A'}, ID: ${userId || 'N/A'})`);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Upload rights request submitted successfully to administrator.',
+    });
+  } catch (error) {
+    console.error('Request Upload Rights Error:', error);
+    return res.status(500).json({ success: false, message: 'Server error processing upload rights request.' });
+  }
+};
+
+router.post('/request-upload-rights', handleUploadRightsRequest);
+router.post('/request-rights', handleUploadRightsRequest);
 
 // =========================================================
 // 3. GET /api/admin/pending-approvals - Fetch All Pending Categories
@@ -444,7 +464,6 @@ router.post('/announcement', async (req, res) => {
       });
     }
 
-    // Deactivate previous active announcements
     await Announcement.updateMany({ isActive: true }, { isActive: false });
 
     const newNotice = new Announcement({
