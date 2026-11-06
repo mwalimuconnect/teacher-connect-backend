@@ -268,6 +268,8 @@ router.get('/type/:type', async (req, res) => {
 // =========================================================
 router.get('/:id', async (req, res) => {
   try {
+    const { isAdmin, userId, preview } = req.query;
+
     const listing = await Listing.findById(req.params.id)
       .populate('user', 'fullName name phone tscNumber tscNo tsc school currentSchool')
       .populate('userId', 'fullName name phone tscNumber tscNo tsc school currentSchool');
@@ -276,7 +278,29 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Listing not found' });
     }
 
-    return res.status(200).json(formatListing(listing));
+    // 🔑 Robust Ownership Check
+    const listingUserId = String(listing.userId?._id || listing.userId || listing.user?._id || listing.user || '');
+    const requestingUserId = String(userId || '');
+    const isOwner = requestingUserId && listingUserId && requestingUserId === listingUserId;
+
+    const isFree = !listing.price || listing.price <= 0;
+    const hasAdminAccess = isAdmin === 'true' || isAdmin === true;
+    const isPaid = listing.isPaid === true;
+    const isPreview = preview === 'true' || preview === true;
+
+    // Block if payment is required and user is not admin, owner, or paid
+    if (!isFree && !hasAdminAccess && !isPaid && !isPreview && !isOwner) {
+      return res.status(403).json({
+        success: false,
+        requiresPayment: true,
+        message: 'Payment required to view full details.',
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: formatListing(listing),
+    });
   } catch (err) {
     console.error('Error fetching listing:', err);
     return res.status(500).json({ success: false, error: err.message || 'Server Error' });
