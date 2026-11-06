@@ -52,10 +52,10 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Resource not found.' });
     }
 
-    const isOwner = userId && (
-      (resource.userId && String(resource.userId) === String(userId)) ||
-      (resource.user && String(resource.user) === String(userId))
-    );
+    // 🔑 Robust Ownership Check
+    const resourceUserId = String(resource.userId?._id || resource.userId || resource.user?._id || resource.user || '');
+    const requestingUserId = String(userId || '');
+    const isOwner = requestingUserId && resourceUserId && requestingUserId === resourceUserId;
 
     const isFree = !resource.price || resource.price <= 0;
     const hasAdminAccess = isAdmin === 'true' || isAdmin === true;
