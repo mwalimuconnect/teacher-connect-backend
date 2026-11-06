@@ -118,4 +118,4 @@ ListingSchema.pre('validate', function (next) {
   next();
 });
 
-module.exports = mongoose.model('Listing', ListingSchema);
+module.exports = mongoose.models.Listing || mongoose.model('Listing', ListingSchema);
