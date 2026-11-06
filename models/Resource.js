@@ -7,7 +7,10 @@ const resourceSchema = new mongoose.Schema({
   form: { type: String, default: 'General' }, // Added to capture Form 1-4 selection
   fileUrl: { type: String, required: true }, // Link from Cloudinary
   price: { type: Number, default: 50 }, // Set minimum valid price to 50
-  description: { type: String, default: '' }
+  description: { type: String, default: '' },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null }, // 👈 Added for ownership tracking
+  userName: { type: String, default: '' } // 👈 Added for owner display name
 }, { timestamps: true });
 
-module.exports = mongoose.model('Resource', resourceSchema);
+// Use safe model export for serverless environments
+module.exports = mongoose.models.Resource || mongoose.model('Resource', resourceSchema);
